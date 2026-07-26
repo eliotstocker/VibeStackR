@@ -1,0 +1,187 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/eliot-stocker/vibestakr/main/schema/run-local.config.schema.json",
+  "title": "vibestakr run-local config",
+  "description": "Describes the local dev stack vibestakr should bring up: services, their dependency order, liveness checks, env, warnings, and keyboard shortcuts. Accepted as run-local.config.json, .yaml, or .yml in the project root.",
+  "type": "object",
+  "required": ["services"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Brand shown in the corner of the TUI and as the terminal title. Defaults to 'run-local'."
+    },
+    "services": {
+      "type": "array",
+      "description": "One entry per process vibestakr manages.",
+      "items": { "$ref": "#/definitions/service" }
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Checks run before startup; each reports its message and aborts startup if every condition in `when` is true.",
+      "items": { "$ref": "#/definitions/check" }
+    },
+    "warnings": {
+      "type": "array",
+      "description": "Non-fatal messages printed at startup when every condition in `when` is true (or always, if `when` is omitted).",
+      "items": {
+        "allOf": [
+          { "$ref": "#/definitions/check" },
+          {
+            "type": "object",
+            "properties": {
+              "service": { "type": "string", "description": "Prefixes the message with '<service>: ' and is skipped entirely if that service is excluded from the run." }
+            }
+          }
+        ]
+      }
+    },
+    "shortcuts": {
+      "type": "array",
+      "description": "Single-key actions available while the TUI is running.",
+      "items": { "$ref": "#/definitions/shortcut" }
+    }
+  },
+  "definitions": {
+    "service": {
+      "type": "object",
+      "required": ["name", "command"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "description": "Unique identifier — used as the tab name, in --exclude/--only, and in dependsOn/restart references." },
+        "type": {
+          "type": "string",
+          "description": "Free-form label. 'node' additionally triggers an automatic `npm install` on first run if cwd/node_modules is missing."
+        },
+        "cwd": { "type": "string", "description": "Working directory the command runs in, relative to the project root." },
+        "command": { "type": "string", "description": "Executable to spawn, e.g. 'npm', 'sh', './gradlew'." },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "env": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Extra environment variables merged over process.env for this service only." },
+        "note": { "type": "string", "description": "One-line description shown pinned atop the service's log tab and in its startup log line — e.g. the URL it serves on." },
+        "jsonLog": { "$ref": "#/definitions/jsonLog" },
+        "oneShot": { "type": "boolean", "description": "True for a job that's expected to exit (a build, a migration, a docker-run) rather than a long-running server." },
+        "dependsOn": { "type": "array", "items": { "type": "string" }, "description": "Other service names that must be ready before this one starts." },
+        "liveness": { "$ref": "#/definitions/liveness" },
+        "onSuccess": { "type": "string", "description": "Shell command run once this oneShot service's process exits with code 0. Fires on process exit, not on liveness passing." },
+        "onReady": { "type": "string", "description": "Shell command run once this service is actually ready (liveness passed, or process exited if oneShot with no liveness). Skipped if liveness times out or fails." }
+      }
+    },
+    "jsonLog": {
+      "type": "object",
+      "description": "Reformats this service's output for display when a line parses as a single JSON object (e.g. Spring Boot's logback JSON encoder, or a pino/winston JSON logger) — everything else is shown unchanged. Purely a display concern: the raw line is still what's captured in the log buffer / --persist-logs file.",
+      "required": ["format"],
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "description": "Template built from the parsed JSON fields, e.g. '${time} [${level}] ${message}'. ${field} supports dot-path for nested fields (${context.requestId}) and ${field:-default}."
+        },
+        "levelField": {
+          "type": "string",
+          "description": "Field holding the log level, used to color the whole formatted line (case-insensitive: error/fatal/severe=red, warn/warning=yellow, debug/trace=grey, anything else uncolored). Defaults to 'level'."
+        },
+        "colors": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Overrides/extends the default level-to-color mapping, e.g. { \"notice\": \"cyan\" }."
+        }
+      }
+    },
+    "liveness": {
+      "type": "object",
+      "description": "How vibestakr decides a service is ready.",
+      "required": ["type"],
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "const": "port" },
+            "host": { "type": "string" },
+            "port": { "type": "integer" },
+            "timeout": { "type": "integer", "description": "Seconds to wait before marking the service 'timeout'. Default 300." }
+          },
+          "required": ["type", "host", "port"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "http" },
+            "url": { "type": "string" },
+            "timeout": { "type": "integer" }
+          },
+          "required": ["type", "url"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "command" },
+            "command": { "type": "string", "description": "Shell command; exit code 0 means ready." },
+            "timeout": { "type": "integer" }
+          },
+          "required": ["type", "command"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "condition": {
+      "type": "object",
+      "description": "A single condition; a check/warning fires only when every condition in its `when` list evaluates true.",
+      "oneOf": [
+        { "required": ["envUnset"], "properties": { "envUnset": { "type": "string" } }, "additionalProperties": false },
+        { "required": ["envSet"], "properties": { "envSet": { "type": "string" } }, "additionalProperties": false },
+        {
+          "required": ["envNotIn"],
+          "properties": {
+            "envNotIn": {
+              "type": "object",
+              "required": ["var", "values"],
+              "properties": { "var": { "type": "string" }, "values": { "type": "array", "items": { "type": "string" } } },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        { "required": ["commandExists"], "properties": { "commandExists": { "type": "string" } }, "additionalProperties": false },
+        { "required": ["commandMissing"], "properties": { "commandMissing": { "type": "string" } }, "additionalProperties": false },
+        {
+          "required": ["commandFails"],
+          "properties": {
+            "commandFails": {
+              "type": "object",
+              "required": ["command"],
+              "properties": { "command": { "type": "string" }, "args": { "type": "array", "items": { "type": "string" } } },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        { "required": ["included"], "properties": { "included": { "type": "string" } }, "additionalProperties": false },
+        { "required": ["excluded"], "properties": { "excluded": { "type": "string" } }, "additionalProperties": false },
+        {
+          "required": ["anyIncluded"],
+          "properties": { "anyIncluded": { "type": "array", "items": { "type": "string" } } },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "check": {
+      "type": "object",
+      "required": ["message"],
+      "properties": {
+        "message": { "type": "string", "description": "Supports ${VAR} / ${VAR:-default} interpolation from process.env." },
+        "when": { "type": "array", "items": { "$ref": "#/definitions/condition" } }
+      }
+    },
+    "shortcut": {
+      "type": "object",
+      "required": ["key", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string", "description": "Single key that triggers this shortcut, e.g. 'r', 'g'." },
+        "label": { "type": "string", "description": "Shown in the status bar legend and --help output." },
+        "restart": { "type": "string", "description": "Name of a service to restart (or start, if not already running)." },
+        "command": { "type": "string", "description": "Shell command to run. Mutually exclusive with `restart`." },
+        "cwd": { "type": "string", "description": "Working directory for `command`, relative to the project root." }
+      }
+    }
+  }
+}

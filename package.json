@@ -1,0 +1,29 @@
+{
+  "name": "vibestakr",
+  "version": "1.0.0",
+  "description": "Local Stack for you and Your Agent",
+  "license": "MIT",
+  "author": "Eliot Stocker",
+  "type": "commonjs",
+  "main": "lib/engine.js",
+  "bin": {
+    "vibestakr": "bin/vibestakr"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "schema"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ajv": "^8.20.0",
+    "blessed": "^0.1.81",
+    "command-line-args": "^6.0.2",
+    "command-line-usage": "^7.0.4",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  }
+}

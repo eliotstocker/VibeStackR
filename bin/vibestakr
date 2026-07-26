@@ -1,0 +1,135 @@
+#!/usr/bin/env node
+//
+// Start a local dev stack: spawn each configured service, stream its output
+// into a per-service tab, poll liveness, and wire up single-key shortcuts.
+// Interactive dev tool only — assumes a real terminal (blessed owns the whole
+// screen). Run via `npx vibestakr` (or as a devDependency) — npm/npx handles
+// installing dependencies from package.json, nothing bootstraps itself at
+// runtime.
+//
+// What each service runs + its liveness check lives in run-local.config.json
+// (or .yaml/.yml), not here — edit that to add/change a service or a
+// shortcut key. This file is just the runner.
+//
+// Usage: npx vibestakr [--exclude <name>[,<name>...]] [--only <name>[,<name>...]] [--persist-logs] [--service-log]
+'use strict'
+
+const commandLineArgs = require('command-line-args')
+const commandLineUsage = require('command-line-usage')
+const { loadConfig } = require('../lib/config')
+const { createEngine } = require('../lib/engine')
+const { createUI } = require('../lib/ui')
+const { startControlSocket, stopControlSocket } = require('../lib/control-socket')
+
+// The directory the user invoked `npx vibestakr` from — NOT where the
+// vibestakr package itself is installed. Config, services' cwds, and logs
+// all live relative to the consuming project.
+const ROOT = process.cwd()
+
+function main(argv) {
+  let config
+  try {
+    ({ config } = loadConfig(ROOT))
+  } catch (err) {
+    console.error(`[vibestakr] ${err.message}`)
+    process.exit(1)
+  }
+  const ALL_NAMES = config.services.map((s) => s.name)
+
+  const OPTION_DEFINITIONS = [
+    {
+      name: 'exclude', alias: 'e', type: String, multiple: true, typeLabel: '{underline name}',
+      description: `Skip one or more services (comma-separated or repeated). Mutually exclusive with --only. Services: ${ALL_NAMES.join(', ')}.`,
+    },
+    {
+      name: 'only', alias: 'o', type: String, multiple: true, typeLabel: '{underline name}',
+      description: 'Start only these services (comma-separated or repeated), plus whatever they transitively dependsOn. Mutually exclusive with --exclude.',
+    },
+    {
+      name: 'persist-logs', type: Boolean,
+      description: "Also write each service's captured output to logs/<name>.log. Off by default — logs live in memory only (up to 20,000 lines/service), enough for the TUI and `vibestakr mcp` to read without touching disk.",
+    },
+    {
+      name: 'service-log', type: Boolean,
+      description: "Sets LOGGING_FILE_NAME=service.log in every service's env, for apps whose own internal logger can write to a file. Unrelated to --persist-logs (that one is vibestakr's own capture of stdout/stderr).",
+    },
+    { name: 'help', alias: 'h', type: Boolean, description: 'Show this help.' },
+  ]
+
+  function printUsage() {
+    console.log(commandLineUsage([
+      { header: 'vibestakr', content: 'Starts a local dev stack from run-local.config.json/.yaml/.yml.' },
+      { header: 'Options', optionList: OPTION_DEFINITIONS },
+      {
+        header: 'Shortcuts (while running)',
+        content: ['{bold q} / Ctrl+C  quit', '{bold Tab} / \u2190\u2192 / 1-9  switch tabs', ...(config.shortcuts || []).map((s) => `{bold ${s.key}}  ${s.label}`)],
+      },
+    ]))
+  }
+
+  let parsed
+  try {
+    parsed = commandLineArgs(OPTION_DEFINITIONS, { argv })
+  } catch (err) {
+    console.error(err.message)
+    printUsage()
+    process.exit(1)
+  }
+  if (parsed.help) { printUsage(); process.exit(0) }
+
+  const excludeNames = new Set((parsed.exclude || []).flatMap((s) => s.split(',')))
+  const onlyNames = new Set((parsed.only || []).flatMap((s) => s.split(',')))
+  if (excludeNames.size && onlyNames.size) {
+    console.error('[vibestakr] --exclude and --only are mutually exclusive')
+    process.exit(1)
+  }
+
+  const args = {
+    exclude: excludeNames,
+    only: onlyNames,
+    serviceLog: parsed['service-log'] ? 'service.log' : '',
+    persistLogs: !!parsed['persist-logs'],
+  }
+
+  const engine = createEngine({ config, args })
+  let socketHandle = null
+
+  process.on('SIGINT', () => quit())
+  process.on('SIGTERM', () => quit())
+  async function quit() {
+    stopControlSocket(socketHandle)
+    await engine.quit()
+    process.exit(0)
+  }
+
+  async function run() {
+    engine.loadEnvFile('.env')
+
+    // Init before any other setup step so mise/checkDeps/service output all
+    // land in the right tab from the very first line.
+    const ui = createUI({ config, engine, onQuit: quit })
+    engine.setUI(ui)
+
+    // Optional layer, not a dependency the TUI needs to function — any
+    // failure here (already running, or the bind failed for some other
+    // reason) just means `vibestakr mcp` won't have anything to talk to; it
+    // never stops the TUI itself from working.
+    socketHandle = await startControlSocket({ engine, config, root: ROOT })
+    if (!socketHandle.ok) engine.warn(`vibestakr mcp won't be able to connect (${socketHandle.reason}) — the TUI itself is unaffected`)
+
+    engine.setupMise()
+    engine.checkDeps()
+    engine.printWarnings()
+    await engine.startAll()
+  }
+  run().catch((err) => { console.error(err); process.exit(1) })
+}
+
+const sub = process.argv[2]
+if (sub === 'mcp') {
+  require('../lib/mcp-server').main()
+} else if (sub === 'init') {
+  require('../lib/init').main()
+} else {
+  main(process.argv.slice(2))
+}
