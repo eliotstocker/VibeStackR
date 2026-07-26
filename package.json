@@ -4,6 +4,14 @@
   "description": "Local Stack for you and Your Agent",
   "license": "MIT",
   "author": "Eliot Stocker",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eliotstocker/VibeStakR.git"
+  },
+  "homepage": "https://github.com/eliotstocker/VibeStakR#readme",
+  "bugs": {
+    "url": "https://github.com/eliotstocker/VibeStakR/issues"
+  },
   "type": "commonjs",
   "main": "lib/engine.js",
   "bin": {

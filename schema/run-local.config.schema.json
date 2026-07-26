@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/eliot-stocker/vibestakr/main/schema/run-local.config.schema.json",
+  "$id": "https://raw.githubusercontent.com/eliotstocker/VibeStakR/main/schema/run-local.config.schema.json",
   "title": "vibestakr run-local config",
   "description": "Describes the local dev stack vibestakr should bring up: services, their dependency order, liveness checks, env, warnings, and keyboard shortcuts. Accepted as run-local.config.json, .yaml, or .yml in the project root.",
   "type": "object",
