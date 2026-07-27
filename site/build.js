@@ -26,6 +26,7 @@ const template = fs.readFileSync(TEMPLATE_PATH, 'utf8')
 const output = template
   .replace('{{HERO}}', marked.parse(readMd('hero.md')))
   .replace('{{DEMO_CAPTION}}', marked.parse(readMd('demo-caption.md')))
+  .replace('{{GET_GOING}}', marked.parse(readMd('get-going.md')))
   .replace('{{FEATURES}}', renderFeatures(readMd('features.md')))
   .replace('{{AGENTS}}', marked.parse(readMd('agents.md')))
   .replace('{{CONFIG}}', marked.parse(readMd('config.md')))

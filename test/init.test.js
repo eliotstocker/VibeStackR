@@ -5,7 +5,7 @@ const assert = require('node:assert/strict')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { buildPrompt, detectCli, CLI_INVOCATIONS } = require('../lib/init')
+const { buildPrompt, buildUpdatePrompt, configMain, detectCli, CLI_INVOCATIONS } = require('../lib/init')
 
 // detectCli() shells out to `sh -c "command -v <name>"`, which resolves
 // against the CURRENT process's PATH — these tests manipulate PATH to
@@ -29,6 +29,18 @@ test('buildPrompt embeds the JSON schema, the example config, and the project ro
   assert.match(prompt, /dependsOn/)
   assert.match(prompt, /\/some\/project\/root/)
   assert.match(prompt, /\.vibestackr\.json/)
+})
+
+test('buildPrompt with no shortcutDescriptions omits the shortcuts-ask section', () => {
+  const prompt = buildPrompt('/some/project/root')
+  assert.doesNotMatch(prompt, /asked for these shortcuts specifically/)
+})
+
+test('buildPrompt embeds each user-described shortcut, asking the agent to translate it into a shortcuts[] entry', () => {
+  const prompt = buildPrompt('/some/project/root', ['r restarts the api service', 'p rebuilds the plugin jar'])
+  assert.match(prompt, /asked for these shortcuts specifically/)
+  assert.match(prompt, /- r restarts the api service/)
+  assert.match(prompt, /- p rebuilds the plugin jar/)
 })
 
 test('CLI_INVOCATIONS build the confirmed non-interactive syntax for each CLI, in priority order', () => {

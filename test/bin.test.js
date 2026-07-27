@@ -30,6 +30,51 @@ function runToCompletion(args, cwd) {
   })
 }
 
+// Same as runToCompletion, but with an overridden PATH — used by the
+// `config` subcommand tests below to guarantee no agent CLI is "installed",
+// so they exercise the printAndCopy fallback deterministically rather than
+// depending on what's actually on this machine's real PATH.
+function runToCompletionWithPath(args, cwd, pathValue) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('node', [BIN, ...args], { cwd, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PATH: pathValue } })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (d) => { stdout += d })
+    child.stderr.on('data', (d) => { stderr += d })
+    child.on('error', reject)
+    child.on('exit', (code) => resolve({ code, stdout, stderr }))
+  })
+}
+
+// A bare `dirname(process.execPath)` (e.g. an nvm bin dir) can have real
+// agent CLIs sitting right next to node itself — not a "nothing installed"
+// PATH at all. This isolates just a `node` symlink on its own, so
+// detectCli() inside the spawned process is guaranteed to find none of the
+// CLI_INVOCATIONS regardless of what's actually installed on this machine.
+function nodeOnlyPath() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-node-only-'))
+  fs.symlinkSync(process.execPath, path.join(dir, 'node'))
+  return `${dir}:/usr/bin:/bin`
+}
+
+test('vibestackr config with no existing config exits 1 with a clear error', async () => {
+  await withTmpDir(async (dir) => {
+    const { code, stderr } = await runToCompletionWithPath(['config', 'add a redis service'], dir, nodeOnlyPath())
+    assert.equal(code, 1)
+    assert.match(stderr, /run 'vibestackr init' first/)
+  })
+})
+
+test('vibestackr config with no agent CLI on PATH prints the update prompt (fallback) and exits 0', async () => {
+  await withTmpDir(async (dir) => {
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify({ services: [] }))
+    const { code, stdout } = await runToCompletionWithPath(['config', 'add a redis service'], dir, nodeOnlyPath())
+    assert.equal(code, 0)
+    assert.match(stdout, /add a redis service/)
+    assert.match(stdout, /EXISTING vibestackr config/)
+  })
+})
+
 // Runs vibestackr as the long-lived TUI, waits until `until()` is true (or a
 // timeout), then sends SIGTERM and waits for *this process* to exit. Note
 // this is the client/TUI process, not the actual daemon it attached to (or

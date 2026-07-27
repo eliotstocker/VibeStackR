@@ -76,6 +76,17 @@ interactive terminal.
   vibestackr's set up, its CLI commands, and its configured shortcuts — so an
   agent working in this repo later already knows, without being told
 
+Already have a config and just want to change something about it? `vibestackr
+config` hands the same agent a targeted edit instead of a from-scratch rewrite:
+
+```sh
+npx vibestackr config "add a redis service on port 6379"
+```
+
+Give the description as an argument, or leave it off to be asked for one
+interactively. Same `--agent <name>` override and CLI auto-detection/fallback
+as `init`.
+
 Or write `.vibestackr.yaml` by hand — a minimal example:
 
 ```yaml

@@ -195,9 +195,29 @@ main {
   border-top: 1px solid var(--border);
 }
 
-.agents h2, .config h2 {
+.agents h2, .config h2, .get-going h2 {
   font-size: 1.5rem;
   margin-bottom: 12px;
+}
+
+.get-going {
+  padding: 0 0 64px;
+  border-top: 1px solid var(--border);
+  padding-top: 56px;
+}
+
+.get-going p {
+  color: var(--muted);
+}
+
+.get-going pre {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  color: #cbe5d6;
 }
 
 .agents p {

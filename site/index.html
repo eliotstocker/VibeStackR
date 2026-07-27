@@ -31,14 +31,12 @@
     <pre class="ascii-logo" aria-hidden="true">_  _ _ ___  ____ ____ ___ ____  ___ _  _ ____
 |  | | |__] |___ [__   |  |__| /    |_/  |__/
  \/  | |__] |___ ___]  |  |  | \___ | \_ |  \ </pre>
-<h1>One command. Your whole local dev stack.</h1>
+<h1>One Command. Local Stack For You and Your Agent</h1>
 <p><a href="https://www.npmjs.com/package/vibestackr"><img src="https://img.shields.io/npm/v/vibestackr.svg" alt="npm version"></a>
 <a href="https://github.com/eliotstocker/VibeStackR/pkgs/npm/vibestackr"><img src="https://img.shields.io/badge/GitHub%20Packages-%40eliotstocker%2Fvibestackr-blue?logo=github" alt="GitHub Packages"></a></p>
-<p>A portable TUI that brings up services in dependency order, watches
-liveness, and wires up keyboard shortcuts — all driven by a single
-config file you drop into your project. Built for your AI coding agent
-as much as for you: an agent can write that config for you, drive the
-stack over MCP mid-session, and reload it on the fly, no restart needed.</p>
+<p>A Simple UI, Task Runner, and MCP server that brings up your local stack in dependency order, watches liveness, wires up keyboard shortcuts, and allows your agent to see exactly what you can see.
+All driven by a single config file in your monorepo or meta-repo, Built for your coding agent as much as for you.
+Your agent can write the config for you, drive and observe the stack via MCP, and reload it on the fly, no restart needed.</p>
 
     <div class="cta-row">
       <code class="install">npx vibestackr</code>
@@ -54,6 +52,16 @@ coding agent to generate one, then starting the stack from the result —
 agent wait time cut from the recording.</p>
 
     </div>
+  </section>
+
+  <section id="get-going" class="get-going">
+<h2>Get going with one command</h2>
+<p>Navigate to the root of your monorepo / meta-repo and run:</p>
+<pre><code class="language-bash">npx vibestackr init
+</code></pre>
+<p>This will call your CLI agent to generate your multi-service config.</p>
+<p><small>Have more than one agent installed? Use <code>--agent</code> to specify which CLI agent to use for config generation.</small></p>
+
   </section>
 
   <section id="features" class="features">

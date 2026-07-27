@@ -1,10 +1,8 @@
-# One command. Your whole local dev stack.
+# One Command. Local Stack For You and Your Agent
 
 [![npm version](https://img.shields.io/npm/v/vibestackr.svg)](https://www.npmjs.com/package/vibestackr)
 [![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-%40eliotstocker%2Fvibestackr-blue?logo=github)](https://github.com/eliotstocker/VibeStackR/pkgs/npm/vibestackr)
 
-A portable TUI that brings up services in dependency order, watches
-liveness, and wires up keyboard shortcuts — all driven by a single
-config file you drop into your project. Built for your AI coding agent
-as much as for you: an agent can write that config for you, drive the
-stack over MCP mid-session, and reload it on the fly, no restart needed.
+A Simple UI, Task Runner, and MCP server that brings up your local stack in dependency order, watches liveness, wires up keyboard shortcuts, and allows your agent to see exactly what you can see.
+All driven by a single config file in your monorepo or meta-repo, Built for your coding agent as much as for you.
+Your agent can write the config for you, drive and observe the stack via MCP, and reload it on the fly, no restart needed.
