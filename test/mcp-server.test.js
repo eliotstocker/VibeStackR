@@ -49,11 +49,44 @@ async function withMcpClient(config, fn) {
   }
 }
 
-test('lists all 5 tools', async () => {
+test('lists all 6 tools', async () => {
   await withMcpClient({ services: [], shortcuts: [] }, async ({ client }) => {
     const { tools } = await client.listTools()
     const names = tools.map((t) => t.name).sort()
-    assert.deepEqual(names, ['get_logs', 'get_status', 'list_shortcuts', 'restart_service', 'run_shortcut'].sort())
+    assert.deepEqual(names, ['get_logs', 'get_services', 'get_status', 'list_shortcuts', 'restart_service', 'run_shortcut'].sort())
+  })
+})
+
+test('get_services reports config-derived info, including watcher, for every service', async () => {
+  const config = {
+    services: [
+      { name: 'web', command: 'npm', args: ['run', 'dev'], type: 'node', note: 'http://localhost:3000', watcher: true, dependsOn: ['db'] },
+      { name: 'db', command: 'true', oneShot: true, liveness: { type: 'command', command: 'true' } },
+    ],
+  }
+  await withMcpClient(config, async ({ client, engine }) => {
+    const res = await client.callTool({ name: 'get_services', arguments: {} })
+    const services = toolText(res).services
+    const web = services.find((s) => s.name === 'web')
+    const db = services.find((s) => s.name === 'db')
+
+    assert.equal(web.type, 'node')
+    assert.equal(web.note, 'http://localhost:3000')
+    assert.equal(web.watcher, true)
+    assert.equal(web.oneShot, false)
+    assert.deepEqual(web.dependsOn, ['db'])
+    assert.equal(web.liveness, null)
+    assert.equal(web.included, true)
+    assert.equal(web.status, null)
+
+    assert.equal(db.watcher, false) // not configured — reported as false, not undefined
+    assert.equal(db.oneShot, true)
+    assert.equal(db.liveness, 'command')
+
+    engine.spawnService(config.services[1])
+    await waitUntil(() => engine.status.get('db') != null)
+    const res2 = await client.callTool({ name: 'get_services', arguments: {} })
+    assert.equal(toolText(res2).services.find((s) => s.name === 'db').status, engine.status.get('db'))
   })
 })
 

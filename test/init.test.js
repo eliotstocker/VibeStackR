@@ -28,7 +28,7 @@ test('buildPrompt embeds the JSON schema, the example config, and the project ro
   assert.match(prompt, /"services"/)
   assert.match(prompt, /dependsOn/)
   assert.match(prompt, /\/some\/project\/root/)
-  assert.match(prompt, /run-local\.config\.json/)
+  assert.match(prompt, /\.vibestakr\.json/)
 })
 
 test('CLI_INVOCATIONS build the confirmed non-interactive syntax for each CLI, in priority order', () => {

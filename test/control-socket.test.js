@@ -94,6 +94,38 @@ test('starts, serves status/logs/shortcuts over the socket, and stops cleanly', 
   })
 })
 
+test('services reports config-derived info per service, including watcher and current included/status', async () => {
+  const config = {
+    services: [
+      { name: 'web', command: 'npm', args: ['run', 'dev'], watcher: true },
+      { name: 'excluded-one', command: 'true' },
+    ],
+  }
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-socket-test-'))
+  const engine = createEngine({ config, args: { exclude: new Set(['excluded-one']), only: new Set(), serviceLog: '', persistLogs: false } })
+  engine.setUI(NOOP_UI)
+  let handle = null
+  try {
+    handle = await startControlSocket({ engine, config, root })
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.status.get('web') === 'starting')
+
+    const res = await request(handle.sockPath, 'services', {})
+    const web = res.result.services.find((s) => s.name === 'web')
+    const excluded = res.result.services.find((s) => s.name === 'excluded-one')
+    assert.equal(web.watcher, true)
+    assert.equal(web.included, true)
+    assert.equal(web.status, 'starting')
+    assert.equal(excluded.watcher, false)
+    assert.equal(excluded.included, false)
+    assert.equal(excluded.status, null)
+  } finally {
+    await Promise.all([...engine.children.keys()].map((n) => engine.killService(n)))
+    stopControlSocket(handle)
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('restart over the socket actually restarts the process', async () => {
   const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'sleep 10'] }] }
   await withEngine(config, async (engine, handle) => {
@@ -156,6 +188,51 @@ test('logs with a `lines` param truncates to the most recent N lines', async () 
     const last5 = await request(handle.sockPath, 'logs', { name: 'noisy', lines: 5 })
     assert.deepEqual(last5.result.lines, ['46', '47', '48', '49', '50'])
   })
+})
+
+test('tail returns only lines appended since the given cursor, plus the new total', async () => {
+  const config = { services: [{ name: 'noisy', command: 'sh', args: ['-c', 'seq 1 5'], oneShot: true }], shortcuts: [] }
+  await withEngine(config, async (engine, handle) => {
+    const { ready } = engine.spawnService(config.services[0])
+    await ready
+
+    const first = await request(handle.sockPath, 'tail', { name: 'noisy', since: 0 })
+    assert.deepEqual(first.result.lines, ['1', '2', '3', '4', '5'])
+    assert.equal(first.result.total, 5)
+
+    // nothing new since the cursor we were just given
+    const second = await request(handle.sockPath, 'tail', { name: 'noisy', since: first.result.total })
+    assert.deepEqual(second.result.lines, [])
+    assert.equal(second.result.total, 5)
+  })
+})
+
+test('tail with no since (or an out-of-range one) falls back to the whole current buffer', async () => {
+  const config = { services: [{ name: 'noisy', command: 'sh', args: ['-c', 'seq 1 3'], oneShot: true }], shortcuts: [] }
+  await withEngine(config, async (engine, handle) => {
+    const { ready } = engine.spawnService(config.services[0])
+    await ready
+    const res = await request(handle.sockPath, 'tail', { name: 'noisy' })
+    assert.deepEqual(res.result.lines, ['1', '2', '3'])
+    assert.equal(res.result.total, 3)
+  })
+})
+
+test('quit responds first, then actually shuts the socket down', async () => {
+  const config = { services: [], shortcuts: [] }
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-socket-test-'))
+  const engine = createEngine({ config, args: baseArgs() })
+  engine.setUI(NOOP_UI)
+  let quitCalled = false
+  try {
+    const handle = await startControlSocket({ engine, config, root, onQuit: () => { quitCalled = true; stopControlSocket(handle) } })
+    const res = await request(handle.sockPath, 'quit', {})
+    assert.deepEqual(res.result, { ok: true })
+    await waitUntil(() => quitCalled)
+    await waitUntil(() => !fs.existsSync(handle.sockPath))
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
 })
 
 test('malformed JSON gets an error response instead of being silently dropped (which would hang the caller)', async () => {
