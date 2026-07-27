@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>vibestackr — a portable TUI for your local dev stack</title>
+<meta name="description" content="A portable TUI that brings up your entire local dev stack with one command — services, dependency order, liveness checks, and keyboard shortcuts, all driven by a single config file." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;400;500;700&display=swap" />
+<link rel="stylesheet" href="assets/style.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.17.0/dist/bundle/asciinema-player.css" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <span class="wordmark">vibestackr</span>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#config">Config</a>
+      <a href="#agents">Agents</a>
+      <a href="https://github.com/eliotstocker/VibeStackR">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero">
+    <pre class="ascii-logo" aria-hidden="true">_  _ _ ___  ____ ____ ___ ____  ___ _  _ ____
+|  | | |__] |___ [__   |  |__| /    |_/  |__/
+ \/  | |__] |___ ___]  |  |  | \___ | \_ |  \ </pre>
+{{HERO}}
+    <div class="cta-row">
+      <code class="install">npx vibestackr</code>
+      <a class="btn" href="https://github.com/eliotstocker/VibeStackR">View on GitHub</a>
+    </div>
+  </section>
+
+  <section class="demo">
+    <div id="demo-player"></div>
+    <div class="caption">
+{{DEMO_CAPTION}}
+    </div>
+  </section>
+
+  <section id="features" class="features">
+{{FEATURES}}
+  </section>
+
+  <section id="agents" class="agents">
+{{AGENTS}}
+  </section>
+
+  <section id="config" class="config">
+{{CONFIG}}
+  </section>
+
+</main>
+
+<footer>
+  <p>MIT licensed. <a href="https://github.com/eliotstocker/VibeStackR">github.com/eliotstocker/VibeStackR</a></p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.17.0/dist/bundle/asciinema-player.min.js"></script>
+<script>
+  AsciinemaPlayer.create('assets/demo.cast', document.getElementById('demo-player'), {
+    autoPlay: true,
+    loop: true,
+    controls: false,
+    fit: 'width'
+  });
+</script>
+</body>
+</html>

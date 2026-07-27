@@ -23,7 +23,11 @@ async function withEngine(config, args, fn) {
   try {
     await fn(engine, dir)
   } finally {
-    await Promise.all([...engine.children.keys()].map((n) => engine.killService(n)))
+    // quit() (not a manual killService loop) — it flips the `quitting` flag
+    // that scheduleAutoRestart() checks before respawning, so a pending
+    // autoRestart timer from an autoRestart test can't fire after teardown
+    // and spawn a zombie process into this now-deleted tmp dir.
+    await engine.quit()
     process.chdir(prevCwd)
     fs.rmSync(dir, { recursive: true, force: true })
   }
@@ -262,6 +266,25 @@ test('restartService replaces the running process', async () => {
   })
 })
 
+test('autoRestart: a crashing service is automatically respawned', async () => {
+  const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'exit 1'], autoRestart: true }] }
+  await withEngine(config, {}, async (engine) => {
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.getLogs('run-local').some((l) => l.includes('autoRestart') && l.includes('attempt 1')))
+    await waitUntil(() => engine.getLogs('run-local').some((l) => l.includes('attempt 2')), { timeout: 5000 })
+  })
+})
+
+test('autoRestart: a crashing service without it set just stays "failed"', async () => {
+  const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'exit 1'] }] }
+  await withEngine(config, {}, async (engine) => {
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.status.get('web') === 'failed')
+    await new Promise((r) => setTimeout(r, 300))
+    assert.ok(!engine.getLogs('run-local').some((l) => l.includes('autoRestart')))
+  })
+})
+
 test('runShortcut: restart-type shortcut starts the named service', async () => {
   const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'sleep 30'] }] }
   await withEngine(config, {}, async (engine) => {
@@ -296,6 +319,25 @@ test('--persist-logs writes logs/<name>.log', async () => {
     engine.spawnService(config.services[0])
     await waitUntil(() => fs.existsSync(path.join(dir, 'logs', 'web.log')) && fs.readFileSync(path.join(dir, 'logs', 'web.log'), 'utf8').includes('hi'))
     assert.ok(fs.readFileSync(path.join(dir, 'logs', 'web.log'), 'utf8').includes('hi'))
+  })
+})
+
+test('envFile loads KEY=VALUE pairs into the service env, and env{} wins on conflict', async () => {
+  const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'echo FOO=$FOO BAR=$BAR'], envFile: '.env', env: { BAR: 'inline' } }] }
+  await withEngine(config, {}, async (engine, dir) => {
+    fs.writeFileSync(path.join(dir, '.env'), '# comment\n\nFOO=from-file\nBAR=should-be-overridden\n')
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.getLogs('web').some((l) => l.includes('FOO=from-file')))
+    assert.ok(engine.getLogs('web').some((l) => l.includes('FOO=from-file BAR=inline')))
+  })
+})
+
+test('envFile pointing at a missing file is a no-op, not an error', async () => {
+  const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'echo done'], oneShot: true, envFile: '.env' }] }
+  await withEngine(config, {}, async (engine) => {
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.getLogs('web').includes('done'))
+    assert.ok(!engine.getLogs('run-local').some((l) => l.includes('envFile')))
   })
 })
 

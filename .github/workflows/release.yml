@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  packages: write
+  id-token: write # npm CLI's OIDC trusted publishing (no NPM_TOKEN needed) — see the "Publish to npm" step
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npm test
+
+      # Only bumps package.json/CHANGELOG.md, tags, and cuts the GitHub
+      # release here — actual npm publish is disabled in .releaserc.json
+      # (npmPublish: false) and done as its own step below, since
+      # @semantic-release/npm still hard-requires an NPM_TOKEN and doesn't
+      # yet support OIDC trusted publishing itself.
+      - name: Release (version bump + GitHub release + CHANGELOG.md)
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Requires this package to be configured as a Trusted Publisher on
+      # npmjs.com (Settings → Trusted Publishers → GitHub Actions, pointed
+      # at this repo/workflow) — no secret needed, npm CLI exchanges this
+      # job's OIDC token for a short-lived publish token automatically.
+      - name: Publish to npm (OIDC trusted publishing)
+        if: steps.semantic.outputs.new_release_published == 'true'
+        run: npm publish
+
+      # GitHub Packages requires a scoped package name matching the repo
+      # owner — mirrored under @eliotstocker/vibestackr rather than renaming
+      # the npmjs package itself. GH Packages has no OIDC trusted-publishing
+      # equivalent (yet), so this leg still uses GITHUB_TOKEN.
+      - name: Mirror to GitHub Packages
+        if: steps.semantic.outputs.new_release_published == 'true'
+        run: |
+          npm pkg set name="@eliotstocker/vibestackr"
+          echo "@eliotstocker:registry=https://npm.pkg.github.com" >> .npmrc
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

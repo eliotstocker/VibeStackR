@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>vibestackr — a portable TUI for your local dev stack</title>
+<meta name="description" content="A portable TUI that brings up your entire local dev stack with one command — services, dependency order, liveness checks, and keyboard shortcuts, all driven by a single config file." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;400;500;700&display=swap" />
+<link rel="stylesheet" href="assets/style.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.17.0/dist/bundle/asciinema-player.css" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <span class="wordmark">vibestackr</span>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#config">Config</a>
+      <a href="#agents">Agents</a>
+      <a href="https://github.com/eliotstocker/VibeStackR">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero">
+    <pre class="ascii-logo" aria-hidden="true">_  _ _ ___  ____ ____ ___ ____  ___ _  _ ____
+|  | | |__] |___ [__   |  |__| /    |_/  |__/
+ \/  | |__] |___ ___]  |  |  | \___ | \_ |  \ </pre>
+<h1>One command. Your whole local dev stack.</h1>
+<p>A portable TUI that brings up services in dependency order, watches
+liveness, and wires up keyboard shortcuts — all driven by a single
+config file you drop into your project. Built for your AI coding agent
+as much as for you: an agent can write that config for you, drive the
+stack over MCP mid-session, and reload it on the fly, no restart needed.</p>
+
+    <div class="cta-row">
+      <code class="install">npx vibestackr</code>
+      <a class="btn" href="https://github.com/eliotstocker/VibeStackR">View on GitHub</a>
+    </div>
+  </section>
+
+  <section class="demo">
+    <div id="demo-player"></div>
+    <div class="caption">
+<p><code>npx vibestackr</code> with no config yet, then <code>vibestackr init</code> handing off to a
+coding agent to generate one, then starting the stack from the result —
+agent wait time cut from the recording.</p>
+
+    </div>
+  </section>
+
+  <section id="features" class="features">
+    <div class="feature">
+<h3>Dependency-ordered startup</h3>
+<p>Declare <code>dependsOn</code> between services; vibestackr starts each only once what it depends on is actually ready, not just spawned.</p>
+    </div>
+    <div class="feature">
+<h3>Real liveness checks</h3>
+<p>Port, HTTP, or command checks flip a service to <em>ready</em> — no arbitrary sleeps, no guessing when the API can take traffic.</p>
+    </div>
+    <div class="feature">
+<h3>One-shot steps</h3>
+<p>Migrations, builds, one-off docker runs — mark them <code>oneShot</code> and they run to completion instead of being treated as long-running.</p>
+    </div>
+    <div class="feature">
+<h3>Keyboard shortcuts</h3>
+<p>Restart a service or run an arbitrary command without leaving the TUI — bind it once in config, use it every session.</p>
+    </div>
+    <div class="feature">
+<h3>Background &amp; reattach</h3>
+<p>Detach the TUI and the stack keeps running as a daemon; run <code>npx vibestackr</code> again from anywhere in the project to reattach.</p>
+    </div>
+    <div class="feature">
+<h3>Per-service logs</h3>
+<p>Every service gets its own scrollback tab, with an optional <code>--persist-logs</code> if you want them on disk too.</p>
+    </div>
+  </section>
+
+  <section id="agents" class="agents">
+<h2>Built for you <em>and</em> your AI coding agent</h2>
+<p>Not a human-facing TUI with an API bolted on after the fact — the
+agent-facing surface is a first-class citizen.</p>
+<ul>
+<li><code>vibestackr init</code> hands an agent the job of writing your config in the first place.</li>
+<li><code>vibestackr mcp</code> lets an agent read status/logs, restart a service, or trigger a shortcut mid-session, without leaving its own context.</li>
+<li><code>reload_config</code> lets it apply a config edit without restarting your stack.</li>
+<li><code>init</code> documents all of this in your project&#39;s own <code>AGENTS.md</code>, so an agent working in the repo later already knows the stack is there.</li>
+</ul>
+
+  </section>
+
+  <section id="config" class="config">
+<h2>One YAML file, your whole stack</h2>
+<pre><code class="language-yaml">name: MyApp
+services:
+  - name: postgres
+    cwd: .
+    command: sh
+    args: [&quot;-c&quot;, &quot;docker start myapp-postgres 2&gt;/dev/null || docker run -d --name myapp-postgres -e POSTGRES_PASSWORD=password -p 5432:5432 postgres:16&quot;]
+    oneShot: true
+    liveness: { type: command, command: docker exec myapp-postgres pg_isready -U postgres }
+  - name: api
+    cwd: api
+    command: npm
+    args: [&quot;run&quot;, &quot;dev&quot;]
+    note: http://localhost:4000
+    dependsOn: [&quot;postgres&quot;]
+    liveness: { type: http, url: http://localhost:4000/health }
+</code></pre>
+
+  </section>
+
+</main>
+
+<footer>
+  <p>MIT licensed. <a href="https://github.com/eliotstocker/VibeStackR">github.com/eliotstocker/VibeStackR</a></p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.17.0/dist/bundle/asciinema-player.min.js"></script>
+<script>
+  AsciinemaPlayer.create('assets/demo.cast', document.getElementById('demo-player'), {
+    autoPlay: true,
+    loop: true,
+    controls: false,
+    fit: 'width'
+  });
+</script>
+</body>
+</html>
