@@ -25,6 +25,12 @@ stack; and `init` documents all of that for it in your project's own
  VibeStackR | 2 up  1 pending  0 down | q quit  b background  R reload config  O show more  Tab/←→ switch  ↑↓ scroll  r restart api
 ```
 
+## Simple Demo
+
+![demo](docs/demo.svg)
+
+*`npx vibestackr` starting from scratch in a multi service repo root, agent wait time is cut out of the recording.*
+
 ## Install & run
 
 No install step needed — just run it in a project that has a
