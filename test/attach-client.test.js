@@ -22,9 +22,9 @@ const waitUntil = async (predicate, { timeout = 3000, interval = 20 } = {}) => {
 
 // A real daemon (engine + control socket), same shape as an attach client
 // would find in practice — attach-client.js has no idea whether it's talking
-// to a genuine `bin/vibestakr --daemon` or this test helper.
+// to a genuine `bin/vibestackr --daemon` or this test helper.
 async function withDaemon(config, fn) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-attach-test-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-attach-test-'))
   const engine = createEngine({ config, args: baseArgs() })
   engine.setUI(NOOP_UI)
   let handle = null
@@ -97,7 +97,7 @@ test('included() is true for a configured, non-excluded service even before it h
 
 test('included() is false for a service excluded via --exclude/--only, even if attach-client never polls status', async () => {
   const config = { services: [{ name: 'web', command: 'true' }, { name: 'worker', command: 'true' }] }
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-attach-test-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-attach-test-'))
   const engine = createEngine({ config, args: { exclude: new Set(['worker']), only: new Set(), serviceLog: '', persistLogs: false } })
   engine.setUI(NOOP_UI)
   let handle = null

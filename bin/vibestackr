@@ -2,27 +2,27 @@
 //
 // Start a local dev stack: spawn each configured service, stream its output
 // into a per-service tab, poll liveness, and wire up single-key shortcuts.
-// Run via `npx vibestakr` (or as a devDependency) — npm/npx handles
+// Run via `npx vibestackr` (or as a devDependency) — npm/npx handles
 // installing dependencies from package.json, nothing bootstraps itself at
 // runtime.
 //
-// What each service runs + its liveness check lives in .vibestakr.json (or
-// .vibestakr/.vibestakr.yaml/.vibestakr.yml, or an explicit --config path),
+// What each service runs + its liveness check lives in .vibestackr.json (or
+// .vibestackr/.vibestackr.yaml/.vibestackr.yml, or an explicit --config path),
 // not here — edit that to add/change a service or a shortcut key. This file
 // is just the runner.
 //
 // Architecture: the actual engine (the process that spawns services and
 // holds their stdout/stderr pipes) always runs as a detached background
 // daemon, with no TUI of its own — this same file, re-invoked with a hidden
-// `--daemon` flag. Every TUI (a fresh `npx vibestakr`, a later one that finds
-// a daemon already running, `npx vibestakr mcp`) is a separate, disposable
+// `--daemon` flag. Every TUI (a fresh `npx vibestackr`, a later one that finds
+// a daemon already running, `npx vibestackr mcp`) is a separate, disposable
 // process that only talks to the daemon over a Unix domain socket (see
 // lib/control-socket.js / lib/attach-client.js). This is what makes
 // `--background`, the in-TUI 'b' shortcut, and reattaching by just running
-// `npx vibestakr` again all the same underlying mechanism: the daemon
+// `npx vibestackr` again all the same underlying mechanism: the daemon
 // outlives any particular client, and a client is cheap to start or drop.
 //
-// Usage: npx vibestakr [--config <path>] [--background] [--exclude <name>[,<name>...]] [--only <name>[,<name>...]] [--persist-logs] [--service-log]
+// Usage: npx vibestackr [--config <path>] [--background] [--exclude <name>[,<name>...]] [--only <name>[,<name>...]] [--persist-logs] [--service-log]
 'use strict'
 
 const fs = require('fs')
@@ -34,12 +34,12 @@ const { loadConfig } = require('../lib/config')
 const { createEngine } = require('../lib/engine')
 const { createUI } = require('../lib/ui')
 const { LOGO_ANSI } = require('../lib/logo')
-const { version: VIBESTAKR_VERSION } = require('../package.json')
+const { version: VIBESTACKR_VERSION } = require('../package.json')
 const { createAttachClient } = require('../lib/attach-client')
 const { startControlSocket, stopControlSocket, socketPath, daemonLogPath, isSocketAlive, requestSocket } = require('../lib/control-socket')
 
-// The directory the user invoked `npx vibestakr` from — NOT where the
-// vibestakr package itself is installed. Config, services' cwds, and logs
+// The directory the user invoked `npx vibestackr` from — NOT where the
+// vibestackr package itself is installed. Config, services' cwds, and logs
 // all live relative to the consuming project.
 const ROOT = process.cwd()
 
@@ -79,7 +79,7 @@ async function stopCommand() {
   try {
     await requestSocket(ROOT, 'quit', {})
   } catch (err) {
-    console.error(`[vibestakr] ${err.message}`)
+    console.error(`[vibestackr] ${err.message}`)
     process.exit(1)
   }
   // Wait for the daemon to actually finish (killing every service can take a
@@ -88,22 +88,22 @@ async function stopCommand() {
   const start = Date.now()
   while (await isSocketAlive(socketPath(ROOT))) {
     if (Date.now() - start > STOP_TIMEOUT_MS) {
-      console.error(`[vibestakr] stop requested, but it's still shutting down after ${STOP_TIMEOUT_MS / 1000}s — check ${daemonLogPath(ROOT)}.`)
+      console.error(`[vibestackr] stop requested, but it's still shutting down after ${STOP_TIMEOUT_MS / 1000}s — check ${daemonLogPath(ROOT)}.`)
       process.exit(1)
     }
     await new Promise((r) => setTimeout(r, POLL_MS))
   }
-  console.log('[vibestakr] stopped.')
+  console.log('[vibestackr] stopped.')
 }
 
 async function reloadCommand() {
   try {
     await requestSocket(ROOT, 'reload_config', {})
   } catch (err) {
-    console.error(`[vibestakr] ${err.message}`)
+    console.error(`[vibestackr] ${err.message}`)
     process.exit(1)
   }
-  console.log('[vibestakr] config reloaded.')
+  console.log('[vibestackr] config reloaded.')
 }
 
 function main(argv) {
@@ -124,7 +124,7 @@ function main(argv) {
   try {
     ({ config } = loadConfig(ROOT, configArg))
   } catch (err) {
-    console.error(`[vibestakr] ${err.message}`)
+    console.error(`[vibestackr] ${err.message}`)
     process.exit(1)
   }
   const ALL_NAMES = config.services.map((s) => s.name)
@@ -132,11 +132,11 @@ function main(argv) {
   const OPTION_DEFINITIONS = [
     {
       name: 'config', alias: 'c', type: String, typeLabel: '{underline path}',
-      description: 'Path to the config file (relative to the project root, or absolute). Skips auto-discovery of .vibestakr.json/.vibestakr/.vibestakr.yaml/.vibestakr.yml.',
+      description: 'Path to the config file (relative to the project root, or absolute). Skips auto-discovery of .vibestackr.json/.vibestackr/.vibestackr.yaml/.vibestackr.yml.',
     },
     {
       name: 'background', alias: 'b', type: Boolean,
-      description: 'Start the daemon and exit immediately, without opening a TUI. Re-run `npx vibestakr` any time afterward to attach one, or `npx vibestakr stop` to shut it down.',
+      description: 'Start the daemon and exit immediately, without opening a TUI. Re-run `npx vibestackr` any time afterward to attach one, or `npx vibestackr stop` to shut it down.',
     },
     {
       name: 'exclude', alias: 'e', type: String, multiple: true, typeLabel: '{underline name}',
@@ -148,7 +148,7 @@ function main(argv) {
     },
     {
       name: 'persist-logs', type: Boolean,
-      description: "Also write each service's captured output to logs/<name>.log. Off by default — logs live in memory only (up to 20,000 lines/service), enough for the TUI and `vibestakr mcp` to read without touching disk. Only takes effect when starting a new daemon.",
+      description: "Also write each service's captured output to logs/<name>.log. Off by default — logs live in memory only (up to 20,000 lines/service), enough for the TUI and `vibestackr mcp` to read without touching disk. Only takes effect when starting a new daemon.",
     },
     {
       name: 'service-log', type: Boolean,
@@ -163,13 +163,13 @@ function main(argv) {
 
   function printUsage() {
     console.log(commandLineUsage([
-      { header: 'vibestakr', content: 'Starts (or attaches a TUI to) a local dev stack from .vibestakr.json/.vibestakr/.vibestakr.yaml/.vibestakr.yml (or --config).' },
+      { header: 'vibestackr', content: 'Starts (or attaches a TUI to) a local dev stack from .vibestackr.json/.vibestackr/.vibestackr.yaml/.vibestackr.yml (or --config).' },
       { header: 'Options', optionList: OPTIONS_FOR_HELP },
       {
         header: 'Shortcuts (while running)',
         content: [
           '{bold q} / Ctrl+C  stop everything (the daemon and every service it manages)',
-          "{bold b}  background — close this view only, the daemon keeps running (re-run vibestakr to reattach)",
+          "{bold b}  background — close this view only, the daemon keeps running (re-run vibestackr to reattach)",
           '{bold Tab} / \u2190\u2192 / 1-9  switch tabs',
           ...(config.shortcuts || []).map((s) => `{bold ${s.key}}  ${s.label}`),
         ],
@@ -190,7 +190,7 @@ function main(argv) {
   const excludeNames = new Set((parsed.exclude || []).flatMap((s) => s.split(',')))
   const onlyNames = new Set((parsed.only || []).flatMap((s) => s.split(',')))
   if (excludeNames.size && onlyNames.size) {
-    console.error('[vibestakr] --exclude and --only are mutually exclusive')
+    console.error('[vibestackr] --exclude and --only are mutually exclusive')
     process.exit(1)
   }
 
@@ -231,11 +231,11 @@ function main(argv) {
 
     // Unlike the old combined single-process mode, the socket here isn't
     // optional — it's the daemon's *only* way to ever be reached again (by
-    // an attaching TUI, `vibestakr stop`, or `vibestakr mcp`), so a bind
+    // an attaching TUI, `vibestackr stop`, or `vibestackr mcp`), so a bind
     // failure is fatal rather than a warning to log and carry on from.
     socketHandle = await startControlSocket({ engine, config, root: ROOT, onQuit: quit, onReloadConfig: reloadConfigFromDisk })
     if (!socketHandle.ok) {
-      console.error(`[vibestakr] control socket failed to bind (${socketHandle.reason}) — cannot run as a daemon without it`)
+      console.error(`[vibestackr] control socket failed to bind (${socketHandle.reason}) — cannot run as a daemon without it`)
       process.exit(1)
     }
 
@@ -303,7 +303,7 @@ function main(argv) {
     const daemonArgv = argv.filter((a) => a !== '--background' && a !== '-b')
     const result = await startDaemon(daemonArgv)
     if (!result.ok) {
-      console.error(`[vibestakr] failed to start — see ${daemonLogPath(ROOT)} for details`)
+      console.error(`[vibestackr] failed to start — see ${daemonLogPath(ROOT)} for details`)
       process.exit(1)
     }
     return result
@@ -316,17 +316,17 @@ function main(argv) {
 
     if (parsed.background) {
       if (alreadyRunning) {
-        console.error('[vibestakr] already running in the background for this project — run `npx vibestakr` to attach, or `npx vibestakr stop` to stop it.')
+        console.error('[vibestackr] already running in the background for this project — run `npx vibestackr` to attach, or `npx vibestackr stop` to stop it.')
         process.exit(1)
       }
       const { pid } = await startNewDaemonOrExit()
-      console.log(`[vibestakr] running in the background (pid ${pid}). Run 'npx vibestakr' in this directory to open the TUI, or 'npx vibestakr stop' to stop it.`)
+      console.log(`[vibestackr] running in the background (pid ${pid}). Run 'npx vibestackr' in this directory to open the TUI, or 'npx vibestackr stop' to stop it.`)
       process.exit(0)
     }
 
     if (alreadyRunning) {
       if (excludeNames.size || onlyNames.size || args.persistLogs || args.serviceLog) {
-        console.error('[vibestakr] note: --exclude/--only/--persist-logs/--service-log only take effect when starting a new daemon — one is already running for this project; attaching to it as-is.')
+        console.error('[vibestackr] note: --exclude/--only/--persist-logs/--service-log only take effect when starting a new daemon — one is already running for this project; attaching to it as-is.')
       }
       return runAttached()
     }
@@ -338,7 +338,7 @@ function main(argv) {
     // screen doesn't exist yet) so the terminal isn't just sitting blank —
     // blessed's alternate-screen-buffer switch on createUI() below replaces
     // this cleanly once the real TUI is ready.
-    console.log(`${LOGO_ANSI}\n[vibestakr] v${VIBESTAKR_VERSION} starting…\n`)
+    console.log(`${LOGO_ANSI}\n[vibestackr] v${VIBESTACKR_VERSION} starting…\n`)
     await startNewDaemonOrExit()
     return runAttached()
   }

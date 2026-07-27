@@ -1,19 +1,19 @@
-# vibestakr
+# vibestackr
 
 A portable TUI that brings up your entire local dev stack with one command —
 services, dependency order, liveness checks, and keyboard shortcuts, all
 driven by a single config file you drop into your project.
 
 Built for you AND your AI coding agent equally, not just as a human-facing
-TUI with an API bolted on. `vibestakr init` hands an agent the job of writing
-your config in the first place; `vibestakr mcp` lets one read status/logs,
+TUI with an API bolted on. `vibestackr init` hands an agent the job of writing
+your config in the first place; `vibestackr mcp` lets one read status/logs,
 restart a service, or trigger a shortcut mid-session without leaving its own
 context; `reload_config` lets it apply a config edit without restarting your
 stack; and `init` documents all of that for it in your project's own
 `AGENTS.md`, so it already knows the stack is there and how to drive it.
 
 ```
-┌─ vibestakr ─────────────────────────────────────────────────────────────┐
+┌─ vibestackr ─────────────────────────────────────────────────────────────┐
 │ [run-local] all required dependencies present                          │
 │ [run-local] starting postgres (docker run, port 5432)                  │
 │ [run-local] ✓ postgres ready                                            │
@@ -22,26 +22,26 @@ stack; and `init` documents all of that for it in your project's own
 │ [run-local] starting web (http://localhost:5173)                       │
 │ [run-local] all apps started — Ctrl+C to stop (or 'q'; 'r' restart api) │
 └──────────────────────────────────────────────────────────────────────────┘
- VibeStakR | 2 up  1 pending  0 down | q quit  b background  R reload config  O show more  Tab/←→ switch  ↑↓ scroll  r restart api
+ VibeStackR | 2 up  1 pending  0 down | q quit  b background  R reload config  O show more  Tab/←→ switch  ↑↓ scroll  r restart api
 ```
 
 ## Install & run
 
 No install step needed — just run it in a project that has a
-`.vibestakr.json` (see below):
+`.vibestackr.yaml` (see below):
 
 ```sh
-npx vibestakr
+npx vibestackr
 ```
 
 Or add it as a `devDependency` and wire up a script:
 
 ```sh
-npm install --save-dev vibestakr
+npm install --save-dev vibestackr
 ```
 
 ```json
-{ "scripts": { "dev": "vibestakr" } }
+{ "scripts": { "dev": "vibestackr" } }
 ```
 
 ## Quick start
@@ -50,7 +50,7 @@ Don't have a config yet? Let an AI coding agent write one for you by
 inspecting your repo:
 
 ```sh
-npx vibestakr init
+npx vibestackr init
 ```
 
 This detects a coding CLI on your `PATH` (`opencode`, `pi`, `claude`,
@@ -62,55 +62,48 @@ before running (and again before each of the steps below) if you're at an
 interactive terminal.
 
 `init` also, once a config exists:
-- registers `vibestakr mcp` as a project-scoped MCP server in `.mcp.json`
+- registers `vibestackr mcp` as a project-scoped MCP server in `.mcp.json`
 - writes a section into your project's `AGENTS.md` documenting that
-  vibestakr's set up, its CLI commands, and its configured shortcuts — so an
+  vibestackr's set up, its CLI commands, and its configured shortcuts — so an
   agent working in this repo later already knows, without being told
 
-Or write `.vibestakr.json` by hand — a minimal example:
+Or write `.vibestackr.yaml` by hand — a minimal example:
 
-```json
-{
-  "name": "MyApp",
-  "services": [
-    {
-      "name": "postgres",
-      "cwd": ".",
-      "command": "sh",
-      "args": ["-c", "docker start myapp-postgres 2>/dev/null || docker run -d --name myapp-postgres -e POSTGRES_PASSWORD=password -p 5432:5432 postgres:16"],
-      "oneShot": true,
-      "liveness": { "type": "command", "command": "docker exec myapp-postgres pg_isready -U postgres" }
-    },
-    {
-      "name": "api",
-      "cwd": "api",
-      "command": "npm",
-      "args": ["run", "dev"],
-      "note": "http://localhost:4000",
-      "dependsOn": ["postgres"],
-      "liveness": { "type": "http", "url": "http://localhost:4000/health" }
-    }
-  ]
-}
+```yaml
+name: MyApp
+services:
+  - name: postgres
+    cwd: .
+    command: sh
+    args: ["-c", "docker start myapp-postgres 2>/dev/null || docker run -d --name myapp-postgres -e POSTGRES_PASSWORD=password -p 5432:5432 postgres:16"]
+    oneShot: true
+    liveness: { type: command, command: docker exec myapp-postgres pg_isready -U postgres }
+  - name: api
+    cwd: api
+    command: npm
+    args: ["run", "dev"]
+    note: http://localhost:4000
+    dependsOn: ["postgres"]
+    liveness: { type: http, url: http://localhost:4000/health }
 ```
 
 Then just:
 
 ```sh
-npx vibestakr
+npx vibestackr
 ```
 
 ## Config reference
 
-`.vibestakr.json` (or `.vibestakr` with no extension, or `.vibestakr.yaml`/
-`.vibestakr.yml` — same shape either way) lives in your project root. Pass
+`.vibestackr.yaml` (or `.vibestackr.yml`, `.vibestackr.json`, or `.vibestackr`
+with no extension — same shape either way) lives in your project root. Pass
 `--config <path>` instead to point at a differently-named or -located file.
 The full format is described by
-[`schema/run-local.config.schema.json`](schema/run-local.config.schema.json)
+[`schema/config.schema.json`](schema/config.schema.json)
 — point your editor at it for autocomplete:
 
 ```json
-{ "$schema": "node_modules/vibestakr/schema/run-local.config.schema.json" }
+{ "$schema": "node_modules/vibestackr/schema/config.schema.json" }
 ```
 
 Top-level fields:
@@ -118,7 +111,7 @@ Top-level fields:
 | Field | Description |
 | --- | --- |
 | `name` | Shown in the TUI's corner and terminal title. Defaults to `run-local`. |
-| `services[]` | One entry per process vibestakr manages. |
+| `services[]` | One entry per process vibestackr manages. |
 | `dependencies[]` | Checks run before startup; abort with a clear message if `when` conditions are all true. |
 | `warnings[]` | Non-fatal messages printed at startup, same `when` conditions. |
 | `shortcuts[]` | Single-key actions available while the TUI is running. |
@@ -135,9 +128,9 @@ Top-level fields:
 | `env` | Extra environment variables merged over `process.env`, for this service only. |
 | `note` | One-line description pinned atop the service's tab (e.g. its URL) and in its startup log line. |
 | `oneShot` | `true` for a job that's expected to exit (a build, a migration, a `docker run`) rather than run forever. |
-| `watcher` | `true` if this service auto-restarts/reloads itself on file changes (nodemon, vite/webpack HMR, spring-boot devtools, etc). Purely informational — vibestakr doesn't implement the watching itself, just surfaces the fact (e.g. via the `get_services` MCP tool). |
+| `watcher` | `true` if this service auto-restarts/reloads itself on file changes (nodemon, vite/webpack HMR, spring-boot devtools, etc). Purely informational — vibestackr doesn't implement the watching itself, just surfaces the fact (e.g. via the `get_services` MCP tool). |
 | `dependsOn[]` | Other service names that must be ready before this one starts. |
-| `liveness` | How vibestakr decides the service is ready — see below. |
+| `liveness` | How vibestackr decides the service is ready — see below. |
 | `onSuccess` | Shell command run once a `oneShot` service's process exits with code 0. Fires on exit, not on liveness. |
 | `onReady` | Shell command run once the service is actually ready (liveness passed, or exited if `oneShot` with no liveness). Skipped on a liveness timeout/failure. |
 | `jsonLog` | Reformats structured (NDJSON) output for display — see below. |
@@ -213,18 +206,18 @@ encoder, pino, winston, etc.), reformat it for display:
 Only lines that actually parse as a single JSON object are reformatted —
 everything else (build tool banners, stack traces) is shown unchanged. This
 is purely a display transform: the ring buffer, `--persist-logs` file, and
-`vibestakr mcp`'s `get_logs` tool all still see the original raw line.
+`vibestackr mcp`'s `get_logs` tool all still see the original raw line.
 
 ## CLI flags
 
 ```
-npx vibestakr [--config <path>] [--background] [--exclude <name>[,<name>...]] [--only <name>[,<name>...]] [--persist-logs] [--service-log]
+npx vibestackr [--config <path>] [--background] [--exclude <name>[,<name>...]] [--only <name>[,<name>...]] [--persist-logs] [--service-log]
 ```
 
 | Flag | Description |
 | --- | --- |
-| `-c, --config <path>` | Path to the config file (relative to the project root, or absolute). Skips auto-discovery of `.vibestakr.json`/`.vibestakr`/`.vibestakr.yaml`/`.vibestakr.yml`. |
-| `-b, --background` | Start the stack and exit immediately, without opening a TUI. Run `npx vibestakr` any time afterward to attach one, or `npx vibestakr stop` to shut it down. |
+| `-c, --config <path>` | Path to the config file (relative to the project root, or absolute). Skips auto-discovery of `.vibestackr.yaml`/`.vibestackr.yml`/`.vibestackr.json`/`.vibestackr`. |
+| `-b, --background` | Start the stack and exit immediately, without opening a TUI. Run `npx vibestackr` any time afterward to attach one, or `npx vibestackr stop` to shut it down. |
 | `-e, --exclude <name>` | Skip one or more services (comma-separated or repeated). Mutually exclusive with `--only`. Only takes effect when starting a new stack (see "Running in the background" below). |
 | `-o, --only <name>` | Start only these services (comma-separated or repeated), plus whatever they transitively `dependsOn`. Mutually exclusive with `--exclude`. Only takes effect when starting a new stack. |
 | `--persist-logs` | Also write each service's captured output to `logs/<name>.log`. Off by default — logs live in memory only (up to 20,000 lines/service). Only takes effect when starting a new stack. |
@@ -235,7 +228,7 @@ npx vibestakr [--config <path>] [--background] [--exclude <name>[,<name>...]] [-
 
 Always available: **q** / **Ctrl+C** stop everything (the stack and every
 service in it), **b** background (close this view — the stack keeps running,
-re-run vibestakr to reattach), **Shift+R** reload config (see `reload_config`
+re-run vibestackr to reattach), **Shift+R** reload config (see `reload_config`
 below) without restarting the stack, **Shift+O** show the status bar's full
 overflow (any other key/click collapses it back to one line), **Tab** /
 **←→** / **1-9** switch tabs, **↑↓** scroll one line, **Page Up/Down** scroll
@@ -245,33 +238,33 @@ define in `shortcuts[]`.
 ## Running in the background
 
 The actual stack (every spawned service) always runs as a background process
-independent of any particular terminal window — `npx vibestakr` either
+independent of any particular terminal window — `npx vibestackr` either
 starts one for this project or finds one already running and opens a TUI
 onto it. That split is what makes the following all work the way you'd
 expect:
 
-- **`npx vibestakr --background`** starts the stack without ever opening a
+- **`npx vibestackr --background`** starts the stack without ever opening a
   TUI — useful for CI-adjacent scripts, or just to get it running and out of
   the way.
 - **Closing the TUI doesn't stop anything.** Press **b** (or just start the
   stack with `--background` in the first place) and the stack keeps running
   after the TUI closes.
-- **Running `npx vibestakr` again** in the same project attaches a TUI to
+- **Running `npx vibestackr` again** in the same project attaches a TUI to
   the already-running stack instead of starting a second one — this is how
   you reopen a backgrounded (or accidentally-closed) stack.
-- **`npx vibestakr stop`** actually stops everything — the counterpart to
+- **`npx vibestackr stop`** actually stops everything — the counterpart to
   `q`/Ctrl+C, but from outside a TUI.
-- **`npx vibestakr reload`** applies a config edit to the running stack
+- **`npx vibestackr reload`** applies a config edit to the running stack
   without restarting it — the CLI counterpart to `reload_config`/Shift+R.
 
 `--exclude`/`--only`/`--persist-logs`/`--service-log` only matter the moment
 a *new* stack starts — they're meaningless when attaching to one that's
-already running (its services were already decided), and vibestakr will warn
+already running (its services were already decided), and vibestackr will warn
 you if you pass them in that situation rather than silently ignoring them.
 
 ## MCP server
 
-`vibestakr mcp` exposes the running stack to AI coding agents over the
+`vibestackr mcp` exposes the running stack to AI coding agents over the
 [Model Context Protocol](https://modelcontextprotocol.io) — read logs, check
 status, restart a service, or trigger a shortcut, without leaving your agent
 session. It's a separate command/process from the TUI (and doesn't need one
@@ -282,9 +275,9 @@ project root, so it's spawned with that project as its working directory):
 ```json
 {
   "mcpServers": {
-    "vibestakr": {
+    "vibestackr": {
       "command": "npx",
-      "args": ["vibestakr", "mcp"]
+      "args": ["vibestackr", "mcp"]
     }
   }
 }
@@ -292,10 +285,10 @@ project root, so it's spawned with that project as its working directory):
 
 Check your specific MCP client's docs for exactly where project-scoped
 server config lives and how working directory is determined — the important
-part is that `vibestakr mcp` ends up running with your project as its
+part is that `vibestackr mcp` ends up running with your project as its
 current directory, the same as the TUI itself.
 
-The stack (started via `npx vibestakr` or `npx vibestakr --background`) needs
+The stack (started via `npx vibestackr` or `npx vibestackr --background`) needs
 to actually be running in that project for tool calls to do anything — if it
 isn't, you'll get a clear error instead of a hang. Tools:
 

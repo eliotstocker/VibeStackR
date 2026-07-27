@@ -10,7 +10,7 @@ const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio
 const { createEngine } = require('../lib/engine')
 const { startControlSocket, stopControlSocket } = require('../lib/control-socket')
 
-const BIN = path.join(__dirname, '..', 'bin', 'vibestakr')
+const BIN = path.join(__dirname, '..', 'bin', 'vibestackr')
 const NOOP_UI = { write() {}, refreshStatus() {}, destroy() {} }
 const baseArgs = () => ({ exclude: new Set(), only: new Set(), serviceLog: '', persistLogs: false })
 
@@ -24,12 +24,12 @@ const waitUntil = async (predicate, { timeout = 3000, interval = 20 } = {}) => {
 
 const toolText = (res) => JSON.parse(res.content[0].text)
 
-// Runs `vibestakr mcp` for real (as a subprocess, over stdio, via the actual
+// Runs `vibestackr mcp` for real (as a subprocess, over stdio, via the actual
 // MCP SDK client) against a real running control socket — the same one the
 // TUI would expose, just without blessed in the loop since these tools never
 // touch the UI at all.
 async function withMcpClient(config, fn) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-mcp-test-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-mcp-test-'))
   const prevCwd = process.cwd()
   process.chdir(root)
   const engine = createEngine({ config, args: baseArgs() })
@@ -49,11 +49,11 @@ async function withMcpClient(config, fn) {
   }
 }
 
-test('lists all 6 tools', async () => {
+test('lists all 7 tools', async () => {
   await withMcpClient({ services: [], shortcuts: [] }, async ({ client }) => {
     const { tools } = await client.listTools()
     const names = tools.map((t) => t.name).sort()
-    assert.deepEqual(names, ['get_logs', 'get_services', 'get_status', 'list_shortcuts', 'restart_service', 'run_shortcut'].sort())
+    assert.deepEqual(names, ['get_logs', 'get_services', 'get_status', 'list_shortcuts', 'reload_config', 'restart_service', 'run_shortcut'].sort())
   })
 })
 
@@ -175,8 +175,8 @@ test('get_logs with a `lines` argument truncates to the most recent N lines', as
   })
 })
 
-test('tool calls return a clear error (not a crash) when no vibestakr TUI is running for this project', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-mcp-test-'))
+test('tool calls return a clear error (not a crash) when no vibestackr TUI is running for this project', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-mcp-test-'))
   const transport = new StdioClientTransport({ command: 'node', args: [BIN, 'mcp'], cwd: root })
   const client = new Client({ name: 'test-client', version: '0.0.0' })
   await client.connect(transport)

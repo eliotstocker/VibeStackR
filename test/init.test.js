@@ -24,11 +24,11 @@ function withPath(value, fn) {
 
 test('buildPrompt embeds the JSON schema, the example config, and the project root', () => {
   const prompt = buildPrompt('/some/project/root')
-  assert.match(prompt, /"title": "vibestakr run-local config"/)
+  assert.match(prompt, /"title": "vibestackr run-local config"/)
   assert.match(prompt, /"services"/)
   assert.match(prompt, /dependsOn/)
   assert.match(prompt, /\/some\/project\/root/)
-  assert.match(prompt, /\.vibestakr\.json/)
+  assert.match(prompt, /\.vibestackr\.json/)
 })
 
 test('CLI_INVOCATIONS build the confirmed non-interactive syntax for each CLI, in priority order', () => {
@@ -50,7 +50,7 @@ test('CLI_INVOCATIONS build the confirmed non-interactive syntax for each CLI, i
 })
 
 test('detectCli finds a stubbed CLI ahead of nothing else on PATH', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-init-test-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-init-test-'))
   fs.writeFileSync(path.join(dir, 'claude'), '#!/bin/sh\necho fake\n')
   fs.chmodSync(path.join(dir, 'claude'), 0o755)
   try {
@@ -64,7 +64,7 @@ test('detectCli finds a stubbed CLI ahead of nothing else on PATH', () => {
 })
 
 test('detectCli respects CLI_INVOCATIONS priority order when multiple are "installed"', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-init-test-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-init-test-'))
   for (const name of ['codex', 'claude', 'pi']) {
     fs.writeFileSync(path.join(dir, name), '#!/bin/sh\necho fake\n')
     fs.chmodSync(path.join(dir, name), 0o755)

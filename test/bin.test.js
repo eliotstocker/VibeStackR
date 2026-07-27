@@ -7,16 +7,16 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 
-const BIN = path.join(__dirname, '..', 'bin', 'vibestakr')
+const BIN = path.join(__dirname, '..', 'bin', 'vibestackr')
 
 function withTmpDir(fn) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-bin-test-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-bin-test-'))
   return Promise.resolve()
     .then(() => fn(dir))
     .finally(() => fs.rmSync(dir, { recursive: true, force: true }))
 }
 
-// Runs vibestakr and waits for it to exit on its own (config errors, --help,
+// Runs vibestackr and waits for it to exit on its own (config errors, --help,
 // arg validation — none of these start the interactive TUI).
 function runToCompletion(args, cwd) {
   return new Promise((resolve, reject) => {
@@ -30,7 +30,7 @@ function runToCompletion(args, cwd) {
   })
 }
 
-// Runs vibestakr as the long-lived TUI, waits until `until()` is true (or a
+// Runs vibestackr as the long-lived TUI, waits until `until()` is true (or a
 // timeout), then sends SIGTERM and waits for *this process* to exit. Note
 // this is the client/TUI process, not the actual daemon it attached to (or
 // started) — SIGTERM here only detaches (same as pressing 'b'), it does NOT
@@ -56,17 +56,17 @@ async function runInteractive(args, cwd, until, { timeout = 3000 } = {}) {
 }
 
 // Actually stops the daemon (and every service it manages) for `cwd`'s
-// project — the counterpart to `npx vibestakr stop`.
+// project — the counterpart to `npx vibestackr stop`.
 function stopDaemon(cwd) {
   return runToCompletion(['stop'], cwd)
 }
 
 test('--help prints usage and exits 0', async () => {
   await withTmpDir(async (dir) => {
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify({ services: [{ name: 'web', command: 'true' }] }))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify({ services: [{ name: 'web', command: 'true' }] }))
     const { code, stdout } = await runToCompletion(['--help'], dir)
     assert.equal(code, 0)
-    assert.match(stdout, /vibestakr/)
+    assert.match(stdout, /vibestackr/)
     assert.match(stdout, /--persist-logs/)
   })
 })
@@ -81,8 +81,8 @@ test('exits 1 with a clear error when no config exists', async () => {
 
 test('exits 1 with a clear error when more than one config exists', async () => {
   await withTmpDir(async (dir) => {
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), '{"services":[]}')
-    fs.writeFileSync(path.join(dir, '.vibestakr.yaml'), 'services: []\n')
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), '{"services":[]}')
+    fs.writeFileSync(path.join(dir, '.vibestackr.yaml'), 'services: []\n')
     const { code, stderr } = await runToCompletion(['--help'], dir)
     assert.equal(code, 1)
     assert.match(stderr, /multiple configs found/)
@@ -108,7 +108,7 @@ test('--config with a missing file exits 1 with a clear error', async () => {
 
 test('--exclude and --only together exit 1', async () => {
   await withTmpDir(async (dir) => {
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify({ services: [{ name: 'web', command: 'true' }] }))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify({ services: [{ name: 'web', command: 'true' }] }))
     const { code, stderr } = await runToCompletion(['--exclude', 'web', '--only', 'web'], dir)
     assert.equal(code, 1)
     assert.match(stderr, /mutually exclusive/)
@@ -124,7 +124,7 @@ test('--only starts just that service (and not one that only the excluded servic
         { name: 'unrelated', type: 'shell', cwd: '.', command: 'sh', args: ['-c', 'echo $$ > unrelated.pid; sleep 30'] },
       ],
     }
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify(config))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify(config))
     const webPid = path.join(dir, 'web.pid')
     const unrelatedPid = path.join(dir, 'unrelated.pid')
     await runInteractive(['--only', 'web'], dir, () => fs.existsSync(webPid))
@@ -143,7 +143,7 @@ test('--only starts just that service (and not one that only the excluded servic
 test('logs/<name>.log is not created by default, but is with --persist-logs', async () => {
   await withTmpDir(async (dir) => {
     const config = { services: [{ name: 'web', type: 'shell', cwd: '.', command: 'sh', args: ['-c', 'echo hi; echo $$ > web.pid; sleep 30'] }] }
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify(config))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify(config))
 
     await runInteractive([], dir, () => fs.existsSync(path.join(dir, 'web.pid')))
     assert.equal(fs.existsSync(path.join(dir, 'logs')), false)
@@ -165,7 +165,7 @@ test('logs/<name>.log is not created by default, but is with --persist-logs', as
 test('--background starts the daemon and returns immediately, without opening a TUI', async () => {
   await withTmpDir(async (dir) => {
     const config = { services: [{ name: 'web', type: 'shell', cwd: '.', command: 'sh', args: ['-c', 'echo $$ > web.pid; sleep 30'] }] }
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify(config))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify(config))
 
     const { code, stdout } = await runToCompletion(['--background'], dir)
     assert.equal(code, 0)
@@ -185,10 +185,10 @@ test('--background starts the daemon and returns immediately, without opening a 
   })
 })
 
-test('running vibestakr again in the same project attaches to the existing daemon instead of starting a new one', async () => {
+test('running vibestackr again in the same project attaches to the existing daemon instead of starting a new one', async () => {
   await withTmpDir(async (dir) => {
     const config = { services: [{ name: 'web', type: 'shell', cwd: '.', command: 'sh', args: ['-c', 'echo $$ > web.pid; sleep 30'] }] }
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify(config))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify(config))
     const webPid = path.join(dir, 'web.pid')
 
     await runInteractive([], dir, () => fs.existsSync(webPid))
@@ -204,10 +204,10 @@ test('running vibestakr again in the same project attaches to the existing daemo
   })
 })
 
-test('vibestakr stop terminates the daemon and every service it manages', async () => {
+test('vibestackr stop terminates the daemon and every service it manages', async () => {
   await withTmpDir(async (dir) => {
     const config = { services: [{ name: 'web', type: 'shell', cwd: '.', command: 'sh', args: ['-c', 'echo $$ > web.pid; sleep 30'] }] }
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify(config))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify(config))
     const webPid = path.join(dir, 'web.pid')
 
     await runInteractive(['--background'], dir, () => fs.existsSync(webPid))
@@ -220,9 +220,9 @@ test('vibestakr stop terminates the daemon and every service it manages', async 
   })
 })
 
-test('vibestakr stop with nothing running exits 1 with a clear error', async () => {
+test('vibestackr stop with nothing running exits 1 with a clear error', async () => {
   await withTmpDir(async (dir) => {
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify({ services: [] }))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify({ services: [] }))
     const { code, stderr } = await stopDaemon(dir)
     assert.equal(code, 1)
     assert.match(stderr, /isn't running/)

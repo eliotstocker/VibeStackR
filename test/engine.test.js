@@ -12,10 +12,10 @@ const NOOP_UI = { write() {}, refreshStatus() {}, destroy() {} }
 const baseArgs = () => ({ exclude: new Set(), only: new Set(), serviceLog: '', persistLogs: false })
 
 // Every test that spawns real processes runs inside a throwaway cwd (service
-// `cwd`/`logs/` are resolved relative to process.cwd(), same as bin/vibestakr
+// `cwd`/`logs/` are resolved relative to process.cwd(), same as bin/vibestackr
 // does for a real project) and always tears down any children it started.
 async function withEngine(config, args, fn) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-engine-test-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-engine-test-'))
   const prevCwd = process.cwd()
   process.chdir(dir)
   const engine = createEngine({ config, args: { ...baseArgs(), ...args } })
@@ -110,8 +110,8 @@ test('printWarnings: envSet/envUnset conditions gate the message', () => {
   const config = {
     services: [],
     warnings: [
-      { message: 'should not fire', when: [{ envSet: 'VIBESTAKR_TEST_UNSET_VAR' }] },
-      { message: 'should fire', when: [{ envUnset: 'VIBESTAKR_TEST_UNSET_VAR' }] },
+      { message: 'should not fire', when: [{ envSet: 'VIBESTACKR_TEST_UNSET_VAR' }] },
+      { message: 'should fire', when: [{ envUnset: 'VIBESTACKR_TEST_UNSET_VAR' }] },
     ],
   }
   const engine = createEngine({ config, args: baseArgs() })
@@ -139,18 +139,18 @@ test('printWarnings: commandExists/commandMissing conditions', () => {
 })
 
 test('printWarnings: commandFails and ${VAR} interpolation', () => {
-  process.env.VIBESTAKR_TEST_VAR = 'interpolated'
+  process.env.VIBESTACKR_TEST_VAR = 'interpolated'
   const config = {
     services: [],
     warnings: [
-      { message: 'value is ${VIBESTAKR_TEST_VAR}', when: [{ commandFails: { command: 'sh', args: ['-c', 'exit 1'] } }] },
+      { message: 'value is ${VIBESTACKR_TEST_VAR}', when: [{ commandFails: { command: 'sh', args: ['-c', 'exit 1'] } }] },
     ],
   }
   const engine = createEngine({ config, args: baseArgs() })
   engine.setUI(NOOP_UI)
   engine.printWarnings()
   const lines = engine.getLogs('run-local').join('\n')
-  delete process.env.VIBESTAKR_TEST_VAR
+  delete process.env.VIBESTACKR_TEST_VAR
   assert.ok(lines.includes('value is interpolated'))
 })
 

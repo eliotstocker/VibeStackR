@@ -8,7 +8,7 @@ const path = require('path')
 const { loadConfig } = require('../lib/config')
 
 function withTmpDir(fn) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-config-test-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-config-test-'))
   try {
     return fn(dir)
   } finally {
@@ -16,36 +16,36 @@ function withTmpDir(fn) {
   }
 }
 
-test('loads .vibestakr.json', () => {
+test('loads .vibestackr.json', () => {
   withTmpDir((dir) => {
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify({ services: [{ name: 'web', command: 'true' }] }))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify({ services: [{ name: 'web', command: 'true' }] }))
     const { config, file } = loadConfig(dir)
     assert.equal(config.services[0].name, 'web')
-    assert.match(file, /\.vibestakr\.json$/)
+    assert.match(file, /\.vibestackr\.json$/)
   })
 })
 
-test('loads .vibestakr (no extension, still JSON)', () => {
+test('loads .vibestackr (no extension, still JSON)', () => {
   withTmpDir((dir) => {
-    fs.writeFileSync(path.join(dir, '.vibestakr'), JSON.stringify({ services: [{ name: 'web', command: 'true' }] }))
+    fs.writeFileSync(path.join(dir, '.vibestackr'), JSON.stringify({ services: [{ name: 'web', command: 'true' }] }))
     const { config, file } = loadConfig(dir)
     assert.equal(config.services[0].name, 'web')
-    assert.match(file, /\.vibestakr$/)
+    assert.match(file, /\.vibestackr$/)
   })
 })
 
-test('loads .vibestakr.yaml', () => {
+test('loads .vibestackr.yaml', () => {
   withTmpDir((dir) => {
-    fs.writeFileSync(path.join(dir, '.vibestakr.yaml'), 'services:\n  - name: web\n    command: "true"\n')
+    fs.writeFileSync(path.join(dir, '.vibestackr.yaml'), 'services:\n  - name: web\n    command: "true"\n')
     const { config, file } = loadConfig(dir)
     assert.equal(config.services[0].name, 'web')
-    assert.match(file, /\.vibestakr\.yaml$/)
+    assert.match(file, /\.vibestackr\.yaml$/)
   })
 })
 
-test('loads .vibestakr.yml', () => {
+test('loads .vibestackr.yml', () => {
   withTmpDir((dir) => {
-    fs.writeFileSync(path.join(dir, '.vibestakr.yml'), 'services:\n  - name: web\n    command: "true"\n')
+    fs.writeFileSync(path.join(dir, '.vibestackr.yml'), 'services:\n  - name: web\n    command: "true"\n')
     const { config } = loadConfig(dir)
     assert.equal(config.services[0].name, 'web')
   })
@@ -59,8 +59,8 @@ test('throws a clear error when no config exists', () => {
 
 test('throws a clear error when more than one config exists', () => {
   withTmpDir((dir) => {
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), '{"services":[]}')
-    fs.writeFileSync(path.join(dir, '.vibestakr.yaml'), 'services: []\n')
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), '{"services":[]}')
+    fs.writeFileSync(path.join(dir, '.vibestackr.yaml'), 'services: []\n')
     assert.throws(() => loadConfig(dir), /multiple configs found/)
   })
 })
@@ -91,7 +91,7 @@ test('an explicit path that does not exist throws a clear error', () => {
 
 test('rejects a config missing a required field, naming the field', () => {
   withTmpDir((dir) => {
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify({ services: [{ name: 'web' }] }))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify({ services: [{ name: 'web' }] }))
     assert.throws(() => loadConfig(dir), (err) => {
       assert.match(err.message, /doesn't match the expected schema/)
       assert.match(err.message, /\/services\/0/)
@@ -103,7 +103,7 @@ test('rejects a config missing a required field, naming the field', () => {
 
 test('rejects an unrecognized top-level property, naming it', () => {
   withTmpDir((dir) => {
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify({ services: [], notARealField: true }))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify({ services: [], notARealField: true }))
     assert.throws(() => loadConfig(dir), (err) => {
       assert.match(err.message, /'notARealField'/)
       return true
@@ -119,7 +119,7 @@ test('rejects an invalid liveness type, and reports every problem at once (not j
         { name: 'db', command: 'true', liveness: { type: 'smoke-signal' } }, // not a real liveness type
       ],
     }
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify(config))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify(config))
     assert.throws(() => loadConfig(dir), (err) => {
       assert.match(err.message, /'command'/)
       assert.match(err.message, /\/services\/1\/liveness/)
@@ -154,7 +154,7 @@ test('accepts a valid config using every top-level and service field', () => {
       warnings: [{ service: 'web', message: 'heads up', when: [{ envUnset: 'FOO' }] }],
       shortcuts: [{ key: 'r', label: 'restart web', restart: 'web' }],
     }
-    fs.writeFileSync(path.join(dir, '.vibestakr.json'), JSON.stringify(config))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify(config))
     assert.doesNotThrow(() => loadConfig(dir))
   })
 })

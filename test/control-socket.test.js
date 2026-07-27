@@ -37,7 +37,7 @@ function request(sockPath, method, params) {
 }
 
 async function withEngine(config, fn) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-socket-test-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-socket-test-'))
   const prevCwd = process.cwd()
   process.chdir(root)
   const engine = createEngine({ config, args: baseArgs() })
@@ -101,7 +101,7 @@ test('services reports config-derived info per service, including watcher and cu
       { name: 'excluded-one', command: 'true' },
     ],
   }
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-socket-test-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-socket-test-'))
   const engine = createEngine({ config, args: { exclude: new Set(['excluded-one']), only: new Set(), serviceLog: '', persistLogs: false } })
   engine.setUI(NOOP_UI)
   let handle = null
@@ -220,7 +220,7 @@ test('tail with no since (or an out-of-range one) falls back to the whole curren
 
 test('quit responds first, then actually shuts the socket down', async () => {
   const config = { services: [], shortcuts: [] }
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-socket-test-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-socket-test-'))
   const engine = createEngine({ config, args: baseArgs() })
   engine.setUI(NOOP_UI)
   let quitCalled = false
@@ -275,7 +275,7 @@ test('a second startControlSocket for the same still-alive root reports already 
 
 test('stopControlSocket removes the socket file so a later start can rebind cleanly', async () => {
   const config = { services: [], shortcuts: [] }
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-socket-test-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-socket-test-'))
   const engine = createEngine({ config, args: baseArgs() })
   engine.setUI(NOOP_UI)
   try {
@@ -294,7 +294,7 @@ test('stopControlSocket removes the socket file so a later start can rebind clea
 
 test('a stale socket file (no listener behind it) is cleaned up and rebound', async () => {
   const config = { services: [], shortcuts: [] }
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestakr-socket-test-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-socket-test-'))
   const engine = createEngine({ config, args: baseArgs() })
   engine.setUI(NOOP_UI)
   try {

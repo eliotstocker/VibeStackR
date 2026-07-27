@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/eliotstocker/VibeStakR/main/schema/run-local.config.schema.json",
-  "title": "vibestakr run-local config",
-  "description": "Describes the local dev stack vibestakr should bring up: services, their dependency order, liveness checks, env, warnings, and keyboard shortcuts. Accepted as .vibestakr.json, .vibestakr, .vibestakr.yaml, or .vibestakr.yml in the project root, or via --config <path>.",
+  "$id": "https://raw.githubusercontent.com/eliotstocker/VibeStackR/main/schema/config.schema.json",
+  "title": "vibestackr run-local config",
+  "description": "Describes the local dev stack vibestackr should bring up: services, their dependency order, liveness checks, env, warnings, and keyboard shortcuts. Accepted as .vibestackr.json, .vibestackr, .vibestackr.yaml, or .vibestackr.yml in the project root, or via --config <path>.",
   "type": "object",
   "required": ["services"],
   "additionalProperties": false,
@@ -13,7 +13,7 @@
     },
     "services": {
       "type": "array",
-      "description": "One entry per process vibestakr manages.",
+      "description": "One entry per process vibestackr manages.",
       "items": { "$ref": "#/definitions/service" }
     },
     "dependencies": {
@@ -60,7 +60,7 @@
         "note": { "type": "string", "description": "One-line description shown pinned atop the service's log tab and in its startup log line — e.g. the URL it serves on." },
         "jsonLog": { "$ref": "#/definitions/jsonLog" },
         "oneShot": { "type": "boolean", "description": "True for a job that's expected to exit (a build, a migration, a docker-run) rather than a long-running server." },
-        "watcher": { "type": "boolean", "description": "True if this service auto-restarts/reloads itself on file changes (e.g. nodemon, vite/webpack HMR, spring-boot devtools). Purely informational — vibestakr doesn't implement the watching itself, just surfaces the fact (e.g. via the get_services MCP tool)." },
+        "watcher": { "type": "boolean", "description": "True if this service auto-restarts/reloads itself on file changes (e.g. nodemon, vite/webpack HMR, spring-boot devtools). Purely informational — vibestackr doesn't implement the watching itself, just surfaces the fact (e.g. via the get_services MCP tool)." },
         "dependsOn": { "type": "array", "items": { "type": "string" }, "description": "Other service names that must be ready before this one starts." },
         "liveness": { "$ref": "#/definitions/liveness" },
         "onSuccess": { "type": "string", "description": "Shell command run once this oneShot service's process exits with code 0. Fires on process exit, not on liveness passing." },
@@ -90,7 +90,7 @@
     },
     "liveness": {
       "type": "object",
-      "description": "How vibestakr decides a service is ready.",
+      "description": "How vibestackr decides a service is ready.",
       "required": ["type"],
       "oneOf": [
         {

@@ -1,21 +1,21 @@
 {
-  "name": "vibestakr",
+  "name": "vibestackr",
   "version": "1.1.0",
   "description": "Local Stack for you and Your Agent",
   "license": "MIT",
   "author": "Eliot Stocker",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/eliotstocker/VibeStakR.git"
+    "url": "git+https://github.com/eliotstocker/VibeStackR.git"
   },
-  "homepage": "https://github.com/eliotstocker/VibeStakR#readme",
+  "homepage": "https://github.com/eliotstocker/VibeStackR#readme",
   "bugs": {
-    "url": "https://github.com/eliotstocker/VibeStakR/issues"
+    "url": "https://github.com/eliotstocker/VibeStackR/issues"
   },
   "type": "commonjs",
   "main": "lib/engine.js",
   "bin": {
-    "vibestakr": "bin/vibestakr"
+    "vibestackr": "bin/vibestackr"
   },
   "files": [
     "bin",
