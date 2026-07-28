@@ -7,6 +7,10 @@
   "required": ["services"],
   "additionalProperties": false,
   "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional JSON Schema URL for editor autocomplete/validation — ignored by vibestackr itself."
+    },
     "name": {
       "type": "string",
       "description": "Brand shown in the corner of the TUI and as the terminal title. Defaults to 'run-local'."
