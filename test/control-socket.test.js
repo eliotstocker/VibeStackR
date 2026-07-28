@@ -82,7 +82,7 @@ test('starts, serves status/logs/shortcuts over the socket, and stops cleanly', 
     assert.equal(status2.result.web, 'starting')
 
     const shortcuts = await request(handle.sockPath, 'shortcuts', {})
-    assert.deepEqual(shortcuts.result.shortcuts, [{ key: 'g', label: 'greet' }])
+    assert.deepEqual(shortcuts.result.shortcuts, [{ key: 'g', label: 'greet', inputs: [] }])
 
     const ran = await request(handle.sockPath, 'run_shortcut', { key: 'g' })
     assert.deepEqual(ran.result, { ok: true })

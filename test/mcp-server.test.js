@@ -111,7 +111,7 @@ test('get_status / restart_service / list_shortcuts / run_shortcut / get_logs ro
     await waitUntil(() => engine.children.get('web').proc.pid !== firstPid)
 
     const shortcuts = await client.callTool({ name: 'list_shortcuts', arguments: {} })
-    assert.deepEqual(toolText(shortcuts).shortcuts, [{ key: 'g', label: 'greet' }])
+    assert.deepEqual(toolText(shortcuts).shortcuts, [{ key: 'g', label: 'greet', inputs: [] }])
 
     const ran = await client.callTool({ name: 'run_shortcut', arguments: { key: 'g' } })
     assert.deepEqual(toolText(ran), { ok: true })
@@ -119,6 +119,21 @@ test('get_status / restart_service / list_shortcuts / run_shortcut / get_logs ro
 
     const logs = await client.callTool({ name: 'get_logs', arguments: { name: 'run-local' } })
     assert.ok(toolText(logs).lines.some((l) => l.includes('hi-mcp')))
+  })
+})
+
+test('run_shortcut passes `inputs` through to an interactive shortcut', async () => {
+  const config = {
+    services: [],
+    shortcuts: [{ key: 'e', label: 'echo message', command: 'echo ${msg}', inputs: [{ name: 'msg', label: 'Message' }] }],
+  }
+  await withMcpClient(config, async ({ client, engine }) => {
+    const shortcuts = await client.callTool({ name: 'list_shortcuts', arguments: {} })
+    assert.deepEqual(toolText(shortcuts).shortcuts, [{ key: 'e', label: 'echo message', inputs: [{ name: 'msg', label: 'Message', placeholder: null, default: null }] }])
+
+    const ran = await client.callTool({ name: 'run_shortcut', arguments: { key: 'e', inputs: { msg: 'hi-from-mcp-input' } } })
+    assert.deepEqual(toolText(ran), { ok: true })
+    await waitUntil(() => engine.getLogs('run-local').some((l) => l.includes('hi-from-mcp-input')))
   })
 })
 

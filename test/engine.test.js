@@ -6,7 +6,7 @@ const fs = require('fs')
 const net = require('net')
 const os = require('os')
 const path = require('path')
-const { createEngine } = require('../lib/engine')
+const { createEngine, goInstallReason, rustInstallReason, pythonInstallReason, pythonInstallCommand, interpolateShortcutInputs } = require('../lib/engine')
 
 const NOOP_UI = { write() {}, refreshStatus() {}, destroy() {} }
 const baseArgs = () => ({ exclude: new Set(), only: new Set(), serviceLog: '', persistLogs: false })
@@ -253,6 +253,30 @@ test('killService terminates the process group', async () => {
   })
 })
 
+test('killService runs stopCommand even for a long-running service that is still alive', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-stopcmd-test-'))
+  const marker = path.join(dir, 'stopped')
+  const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'sleep 30'], stopCommand: `touch ${marker}` }] }
+  await withEngine(config, {}, async (engine) => {
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.children.has('web'))
+    await engine.killService('web')
+    assert.ok(fs.existsSync(marker))
+  })
+})
+
+test('killService runs stopCommand for a oneShot service whose process already exited (e.g. docker run -d)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-stopcmd-test-'))
+  const marker = path.join(dir, 'stopped')
+  const config = { services: [{ name: 'db', command: 'true', oneShot: true, stopCommand: `touch ${marker}` }] }
+  await withEngine(config, {}, async (engine) => {
+    const { ready } = engine.spawnService(config.services[0])
+    await ready // process has already exited by the time this resolves
+    await engine.killService('db')
+    assert.ok(fs.existsSync(marker))
+  })
+})
+
 test('restartService replaces the running process', async () => {
   const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'sleep 30'] }] }
   await withEngine(config, {}, async (engine) => {
@@ -381,5 +405,103 @@ test('per-service log ring buffer is capped rather than growing unbounded', asyn
     const lines = engine.getLogs('noisy')
     assert.ok(lines.length <= 21000, `expected buffer to be capped, got ${lines.length}`)
     assert.equal(lines[lines.length - 1], '25000') // most recent line always survives trimming
+  })
+})
+
+// ── go/rust/python install-step detection ─────────────────────────────────
+
+function tmpProjectDir() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-install-test-'))
+}
+
+test('goInstallReason: no go.mod means nothing to install', () => {
+  const dir = tmpProjectDir()
+  assert.equal(goInstallReason(dir), null)
+})
+
+test('goInstallReason: go.mod present with no marker yet is "first run"', () => {
+  const dir = tmpProjectDir()
+  fs.writeFileSync(`${dir}/go.mod`, 'module example\n')
+  assert.equal(goInstallReason(dir), 'first run')
+})
+
+test('goInstallReason: marker newer than go.sum means already installed', () => {
+  const dir = tmpProjectDir()
+  fs.writeFileSync(`${dir}/go.sum`, '')
+  fs.writeFileSync(`${dir}/.vibestackr-go-installed`, '')
+  assert.equal(goInstallReason(dir), null)
+})
+
+test('goInstallReason: go.sum touched after the marker means reinstall', () => {
+  const dir = tmpProjectDir()
+  fs.writeFileSync(`${dir}/.vibestackr-go-installed`, '')
+  fs.utimesSync(`${dir}/.vibestackr-go-installed`, new Date(Date.now() - 10000), new Date(Date.now() - 10000))
+  fs.writeFileSync(`${dir}/go.sum`, '')
+  assert.equal(goInstallReason(dir), 'manifest changed since last install')
+})
+
+test('rustInstallReason: Cargo.toml present with no marker yet is "first run"', () => {
+  const dir = tmpProjectDir()
+  fs.writeFileSync(`${dir}/Cargo.toml`, '[package]\n')
+  assert.equal(rustInstallReason(dir), 'first run')
+})
+
+test('pythonInstallReason: requirements.txt present with no marker yet is "first run"', () => {
+  const dir = tmpProjectDir()
+  fs.writeFileSync(`${dir}/requirements.txt`, 'flask\n')
+  assert.equal(pythonInstallReason(dir), 'first run')
+})
+
+test('pythonInstallCommand: prefers uv when uv.lock exists, even alongside other manifests', () => {
+  const dir = tmpProjectDir()
+  fs.writeFileSync(`${dir}/uv.lock`, '')
+  fs.writeFileSync(`${dir}/requirements.txt`, '')
+  assert.deepEqual(pythonInstallCommand(dir), { command: 'uv', args: ['sync'] })
+})
+
+test('pythonInstallCommand: prefers poetry when poetry.lock exists', () => {
+  const dir = tmpProjectDir()
+  fs.writeFileSync(`${dir}/poetry.lock`, '')
+  fs.writeFileSync(`${dir}/requirements.txt`, '')
+  assert.deepEqual(pythonInstallCommand(dir), { command: 'poetry', args: ['install'] })
+})
+
+test('pythonInstallCommand: falls back to pip -r requirements.txt with no lockfile', () => {
+  const dir = tmpProjectDir()
+  fs.writeFileSync(`${dir}/requirements.txt`, '')
+  assert.deepEqual(pythonInstallCommand(dir), { command: 'pip', args: ['install', '-r', 'requirements.txt'] })
+})
+
+// ── interactive shortcuts[].inputs ────────────────────────────────────────
+
+test('interpolateShortcutInputs: substitutes ${name} with the given value', () => {
+  const result = interpolateShortcutInputs('echo ${msg}', [{ name: 'msg' }], { msg: 'hello world' })
+  assert.equal(result, "echo 'hello world'")
+})
+
+test('interpolateShortcutInputs: falls back to the input\'s own default when no value given', () => {
+  const result = interpolateShortcutInputs('echo ${msg}', [{ name: 'msg', default: 'fallback' }], {})
+  assert.equal(result, "echo 'fallback'")
+})
+
+test('interpolateShortcutInputs: shell-quotes a value so it cannot inject additional shell syntax', () => {
+  const result = interpolateShortcutInputs('echo ${msg}', [{ name: 'msg' }], { msg: "hi'; rm -rf /tmp/whatever; echo '" })
+  assert.equal(result, "echo 'hi'\\''; rm -rf /tmp/whatever; echo '\\'''")
+})
+
+test('interpolateShortcutInputs: with no inputs[] configured, the command passes through unchanged', () => {
+  assert.equal(interpolateShortcutInputs('echo hi', undefined, {}), 'echo hi')
+})
+
+test('runShortcut: an interactive shortcut runs its command with ${name} substituted from values', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-shortcut-test-'))
+  const marker = path.join(dir, 'out.txt')
+  const config = {
+    services: [],
+    shortcuts: [{ key: 'g', label: 'greet', command: `echo \${msg} > ${marker}`, inputs: [{ name: 'msg' }] }],
+  }
+  await withEngine(config, {}, async (engine) => {
+    engine.runShortcut(config.shortcuts[0], { msg: 'hello from a shortcut' })
+    assert.equal(fs.readFileSync(marker, 'utf8').trim(), 'hello from a shortcut')
   })
 })

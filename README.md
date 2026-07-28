@@ -106,10 +106,11 @@ status, read the logs, debug the issue, and iterate.
 
 Always available: **q** / **Ctrl+C** stop everything, **b** background
 (stack keeps running, re-run vibestackr to reattach), **Shift+R** reload
-config without restarting the stack, **Shift+O** show the status bar's full
-overflow, **Tab** / **←→** / **1-9** switch tabs, **↑↓** scroll one line,
-**Page Up/Down** scroll a page, **Home/End** jump to top / back to the live
-tail. Plus whatever you define in `shortcuts[]`.
+config without restarting the stack, **Shift+S** pick a service to restart
+from a popover list, **Shift+O** show the status bar's full overflow,
+**Tab** / **←→** / **1-9** switch tabs, **↑↓** scroll one line, **Page
+Up/Down** scroll a page, **Home/End** jump to top / back to the live tail.
+Plus whatever you define in `shortcuts[]`.
 
 ## MCP server
 

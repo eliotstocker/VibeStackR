@@ -142,6 +142,20 @@ test('runShortcut proxies to the daemon over the socket', async () => {
   })
 })
 
+test('restartService proxies to the daemon over the socket', async () => {
+  const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'sleep 10'] }] }
+  await withDaemon(config, async ({ engine, root }) => {
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.children.has('web'))
+    const firstPid = engine.children.get('web').proc.pid
+
+    const attach = createAttachClient({ config, root })
+    await attach.restartService('web')
+    await waitUntil(() => engine.children.get('web')?.proc.pid !== firstPid)
+    assert.notEqual(engine.children.get('web').proc.pid, firstPid)
+  })
+})
+
 test('detach() stops polling and destroys the local UI, without touching the daemon', async () => {
   const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'sleep 10'] }] }
   await withDaemon(config, async ({ engine, root, isQuit }) => {

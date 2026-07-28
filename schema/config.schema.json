@@ -51,7 +51,7 @@
         "name": { "type": "string", "description": "Unique identifier — used as the tab name, in --exclude/--only, and in dependsOn/restart references." },
         "type": {
           "type": "string",
-          "description": "Free-form label. 'node' additionally triggers an automatic `npm install` on first run if cwd/node_modules is missing."
+          "description": "Free-form label. 'node' additionally triggers an automatic `npm install` on first run (or if the lockfile changed) if cwd/node_modules is missing. 'go' runs `go mod download`, 'rust' runs `cargo fetch`, and 'python' runs `uv sync`/`poetry install`/`pipenv install`/`pip install -r requirements.txt` (whichever manifest is present) under the same first-run/manifest-changed conditions."
         },
         "cwd": { "type": "string", "description": "Working directory the command runs in, relative to the project root." },
         "command": { "type": "string", "description": "Executable to spawn, e.g. 'npm', 'sh', './gradlew'." },
@@ -66,7 +66,8 @@
         "dependsOn": { "type": "array", "items": { "type": "string" }, "description": "Other service names that must be ready before this one starts." },
         "liveness": { "$ref": "#/definitions/liveness" },
         "onSuccess": { "type": "string", "description": "Shell command run once this oneShot service's process exits with code 0. Fires on process exit, not on liveness passing." },
-        "onReady": { "type": "string", "description": "Shell command run once this service is actually ready (liveness passed, or process exited if oneShot with no liveness). Skipped if liveness times out or fails." }
+        "onReady": { "type": "string", "description": "Shell command run once this service is actually ready (liveness passed, or process exited if oneShot with no liveness). Skipped if liveness times out or fails." },
+        "stopCommand": { "type": "string", "description": "Shell command run in cwd when this service is stopped (restart, `vibestackr stop`, or Ctrl+C/'q'/'reload' shutdown) — for cleanup of anything that outlives the spawned process itself, e.g. `docker stop my-postgres` or `docker compose down` for a oneShot `docker run -d`/`docker compose up -d` service whose own process already exited long ago." }
       }
     },
     "jsonLog": {
@@ -182,8 +183,23 @@
         "key": { "type": "string", "description": "Single key that triggers this shortcut, e.g. 'r', 'g'." },
         "label": { "type": "string", "description": "Shown in the status bar legend and --help output." },
         "restart": { "type": "string", "description": "Name of a service to restart (or start, if not already running)." },
-        "command": { "type": "string", "description": "Shell command to run. Mutually exclusive with `restart`." },
-        "cwd": { "type": "string", "description": "Working directory for `command`, relative to the project root." }
+        "command": { "type": "string", "description": "Shell command to run. Mutually exclusive with `restart`. Can reference `${name}` for each entry in `inputs[]`, substituted with the value collected for it." },
+        "cwd": { "type": "string", "description": "Working directory for `command`, relative to the project root." },
+        "inputs": {
+          "type": "array",
+          "description": "Makes this a `command`-type shortcut interactive: collects a value for each entry here before running `command` (TUI: a popover with one text box per input; MCP's run_shortcut tool gains a matching `inputs` parameter) and substitutes `${name}` in `command` with what was collected. Ignored for `restart`-type shortcuts.",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "description": "Substituted into `command` as `${name}`." },
+              "label": { "type": "string", "description": "Shown above the input box / as the MCP parameter description. Defaults to `name`." },
+              "placeholder": { "type": "string", "description": "Placeholder text shown in the empty input box." },
+              "default": { "type": "string", "description": "Used if the value submitted is empty." }
+            }
+          }
+        }
       }
     }
   }

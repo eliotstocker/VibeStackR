@@ -27,7 +27,7 @@ Top-level fields:
 | --- | --- |
 | `name` (required) | Unique identifier — tab name, and used in `--exclude`/`--only`/`dependsOn`/`restart`. |
 | `command` (required) | Executable to spawn, e.g. `npm`, `sh`, `./gradlew`. |
-| `type` | Free-form label. `"node"` additionally triggers an automatic `npm install` on first run if `cwd/node_modules` is missing. |
+| `type` | Free-form label. Some values additionally trigger an automatic dependency-install step before the service first starts (and again if its manifest changes) — see below. |
 | `cwd` | Working directory, relative to the project root. |
 | `args` | Array of command-line arguments. |
 | `env` | Extra environment variables merged over `process.env`, for this service only. |
@@ -38,7 +38,23 @@ Top-level fields:
 | `liveness` | How vibestackr decides the service is ready — see below. |
 | `onSuccess` | Shell command run once a `oneShot` service's process exits with code 0. Fires on exit, not on liveness. |
 | `onReady` | Shell command run once the service is actually ready (liveness passed, or exited if `oneShot` with no liveness). Skipped on a liveness timeout/failure. |
+| `stopCommand` | Shell command run in `cwd` when this service is stopped (restart, `vibestackr stop`, or shutdown) — for cleanup of anything that outlives the spawned process itself, e.g. `docker stop my-postgres` for a `oneShot: docker run -d ...` service whose own process already exited long ago. |
 | `jsonLog` | Reformats structured (NDJSON) output for display — see below. |
+
+**Auto-install by `type`** — a handful of `type` values trigger a
+dependency-install step in `cwd`, run once on first start and again whenever
+the relevant manifest changes since the last install (detected via a marker
+vibestackr drops next to it — `.vibestackr-<type>-installed` for go/rust/python,
+`node_modules/.package-lock.json`'s own mtime for node):
+
+| `type` | Manifest checked | Install command |
+| --- | --- | --- |
+| `node` | `package-lock.json` / `npm-shrinkwrap.json` (or just `node_modules` missing) | `npm install` |
+| `go` | `go.sum` (or `go.mod`) | `go mod download` |
+| `rust` | `Cargo.lock` (or `Cargo.toml`) | `cargo fetch` |
+| `python` | `uv.lock`, `poetry.lock`, `Pipfile.lock`, or `requirements.txt`, in that priority order | `uv sync`, `poetry install`, `pipenv install`, or `pip install -r requirements.txt` respectively |
+
+Any other `type` value is just a free-form label with no install behavior.
 
 **Liveness** (`services[].liveness`) — one of:
 
@@ -83,6 +99,34 @@ service names). `message` (and `commandFails.command`/`args`) support
 `restart` (name of a service to restart, or start if not running) and
 `command` (a literal shell command, run with `cwd` relative to the project
 root) are mutually exclusive.
+
+### Interactive shortcuts (`inputs[]`)
+
+A `command`-type shortcut can collect one or more values before running,
+substituting `${name}` in `command` for each:
+
+```json
+{
+  "key": "m",
+  "label": "run a migration",
+  "command": "npm run migrate -- --env ${env}",
+  "cwd": "api",
+  "inputs": [
+    { "name": "env", "label": "Environment", "placeholder": "staging", "default": "staging" }
+  ]
+}
+```
+
+- In the TUI, pressing the shortcut's key opens a popover with one text box
+  per input (Enter moves to the next box, or runs the command on the last
+  one; Esc cancels).
+- Over MCP, `list_shortcuts` reports each shortcut's `inputs[]` so an agent
+  knows what to pass, and `run_shortcut` takes a matching `inputs: {name:
+  value}` argument.
+- Each substituted value is shell-quoted before being spliced into
+  `command`, so it can't inject additional shell syntax.
+- `default` is used if an empty value is submitted. Ignored for
+  `restart`-type shortcuts.
 
 ## `jsonLog` — pretty-printing structured logs
 
