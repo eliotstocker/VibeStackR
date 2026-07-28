@@ -45,12 +45,12 @@ test('buildPrompt embeds each user-described shortcut, asking the agent to trans
 
 test('CLI_INVOCATIONS build the confirmed non-interactive syntax for each CLI, in priority order', () => {
   const expected = [
-    ['opencode', ['run', 'PROMPT']],
+    ['opencode', ['run', '--auto', 'PROMPT']],
     ['pi', ['-p', 'PROMPT']],
-    ['claude', ['-p', 'PROMPT']],
-    ['copilot', ['-p', 'PROMPT']],
+    ['claude', ['-p', '--permission-mode', 'acceptEdits', 'PROMPT']],
+    ['copilot', ['--allow-all-tools', '-p', 'PROMPT']],
     ['codex', ['exec', 'PROMPT']],
-    ['agy', ['-p', 'PROMPT']],
+    ['agy', ['--dangerously-skip-permissions', '-p', 'PROMPT']],
   ]
   assert.deepEqual(CLI_INVOCATIONS.map((c) => c.name), expected.map((e) => e[0]))
   for (const [name, args] of expected) {
