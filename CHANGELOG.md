@@ -1,3 +1,10 @@
+## [1.2.4](https://github.com/eliotstocker/VibeStackR/compare/v1.2.3...v1.2.4) (2026-07-28)
+
+
+### Bug Fixes
+
+* add stop command and a few other bits ([530f26c](https://github.com/eliotstocker/VibeStackR/commit/530f26cf5e0a626b230458c24d470858aa0fae5c))
+
 ## [1.2.3](https://github.com/eliotstocker/VibeStackR/compare/v1.2.2...v1.2.3) (2026-07-28)
 
 
