@@ -1,12 +1,12 @@
 ### Dependency-ordered startup
 
-Declare `dependsOn` between services; vibestackr starts each only once what it depends on is actually ready, not just spawned.
+Declare `dependsOn` between services, and on installed tools.
 
 ---
 
 ### Real liveness checks
 
-Port, HTTP, or command checks flip a service to *ready* — no arbitrary sleeps, no guessing when the API can take traffic.
+Port, HTTP, or command checks flip a service to *ready*.
 
 ---
 
@@ -18,13 +18,13 @@ Migrations, builds, one-off docker runs — mark them `oneShot` and they run to 
 
 ### Keyboard shortcuts
 
-Restart a service or run an arbitrary command without leaving the TUI — bind it once in config, use it every session.
+Restart a service or run an arbitrary command with a shortcut key, or from your agent.
 
 ---
 
 ### Background & reattach
 
-Detach the TUI and the stack keeps running as a daemon; run `npx vibestackr` again from anywhere in the project to reattach.
+Detach the UI and the stack keeps running as a daemon; run `npx vibestackr` again from anywhere in the project to reattach.
 
 ---
 

@@ -53,6 +53,12 @@ jobs:
         if: steps.semantic.outputs.new_release_published == 'true'
         run: npm publish
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://npm.pkg.github.com
+          scope: '@eliotstocker'
+
       # GitHub Packages requires a scoped package name matching the repo
       # owner — mirrored under @eliotstocker/vibestackr rather than renaming
       # the npmjs package itself. GH Packages has no OIDC trusted-publishing
@@ -61,7 +67,6 @@ jobs:
         if: steps.semantic.outputs.new_release_published == 'true'
         run: |
           npm pkg set name="@eliotstocker/vibestackr"
-          echo "@eliotstocker:registry=https://npm.pkg.github.com" >> .npmrc
           npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
