@@ -25,6 +25,9 @@ needed.
 
 ![demo](docs/demo.svg)
 
+## Demo
+Want to see it in action? Check out our [demo monorepo](https://github.com/eliotstocker/vibestackr-demo-monorepo).
+
 ## Install & run
 
 No install step needed:
