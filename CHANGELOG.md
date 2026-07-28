@@ -1,3 +1,10 @@
+## [1.2.2](https://github.com/eliotstocker/VibeStackR/compare/v1.2.1...v1.2.2) (2026-07-28)
+
+
+### Bug Fixes
+
+* init issues ([a66a8f6](https://github.com/eliotstocker/VibeStackR/commit/a66a8f61d661cce891ae86f639bad71dafd0f1c6))
+
 ## [1.2.1](https://github.com/eliotstocker/VibeStackR/compare/v1.2.0...v1.2.1) (2026-07-27)
 
 
