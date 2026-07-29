@@ -44,10 +44,14 @@ Your agent can write the config for you, drive and observe the stack via MCP, an
     </div>
   </section>
 
-<section class="demo">
+  <section class="demo">
     <div id="demo-player"></div>
     <div class="caption">
-      <p>Check out the <a href="https://github.com/eliotstocker/vibestackr-demo-monorepo" target="_blank">demo monorepo</a> to see it in action.</p>
+<p><code>npx vibestackr</code> with no config yet, then <code>vibestackr init</code> handing off to a
+coding agent to generate one, then starting the stack from the result, and asking claude to debug a startup issue —
+agent wait time cut from the recording.</p>
+<p>Check out the <a href="https://github.com/eliotstocker/vibestackr-demo-monorepo">demo monorepo</a> to see it in action.</p>
+
     </div>
   </section>
 
@@ -64,11 +68,11 @@ Your agent can write the config for you, drive and observe the stack via MCP, an
   <section id="features" class="features">
     <div class="feature">
 <h3>Dependency-ordered startup</h3>
-<p>Declare <code>dependsOn</code> between services; vibestackr starts each only once what it depends on is actually ready, not just spawned.</p>
+<p>Declare <code>dependsOn</code> between services, and on installed tools.</p>
     </div>
     <div class="feature">
 <h3>Real liveness checks</h3>
-<p>Port, HTTP, or command checks flip a service to <em>ready</em> — no arbitrary sleeps, no guessing when the API can take traffic.</p>
+<p>Port, HTTP, or command checks flip a service to <em>ready</em>.</p>
     </div>
     <div class="feature">
 <h3>One-shot steps</h3>
@@ -76,11 +80,11 @@ Your agent can write the config for you, drive and observe the stack via MCP, an
     </div>
     <div class="feature">
 <h3>Keyboard shortcuts</h3>
-<p>Restart a service or run an arbitrary command without leaving the TUI — bind it once in config, use it every session.</p>
+<p>Restart a service or run an arbitrary command with a shortcut key, or from your agent.</p>
     </div>
     <div class="feature">
 <h3>Background &amp; reattach</h3>
-<p>Detach the TUI and the stack keeps running as a daemon; run <code>npx vibestackr</code> again from anywhere in the project to reattach.</p>
+<p>Detach the UI and the stack keeps running as a daemon; run <code>npx vibestackr</code> again from anywhere in the project to reattach.</p>
     </div>
     <div class="feature">
 <h3>Per-service logs</h3>
@@ -90,19 +94,20 @@ Your agent can write the config for you, drive and observe the stack via MCP, an
 
   <section id="agents" class="agents">
 <h2>Built for you <em>and</em> your AI coding agent</h2>
-<p>Not a human-facing TUI with an API bolted on after the fact — the
+<p>Not a human-facing Terminal UI with an API bolted on after the fact — the
 agent-facing surface is a first-class citizen.</p>
 <ul>
 <li><code>vibestackr init</code> hands an agent the job of writing your config in the first place.</li>
 <li><code>vibestackr mcp</code> lets an agent read status/logs, restart a service, or trigger a shortcut mid-session, without leaving its own context.</li>
-<li><code>reload_config</code> lets it apply a config edit without restarting your stack.</li>
-<li><code>init</code> documents all of this in your project&#39;s own <code>AGENTS.md</code>, so an agent working in the repo later already knows the stack is there.</li>
+<li><code>vubestackr config &quot;add a postgres docker instance and make the java service depend on it&quot;</code> updates your config file using your installed agent cli</li>
 </ul>
+<p>you agent can now write code, restart the running service, check the status, read the logs, debug the issue and intterate.</p>
 
   </section>
 
   <section id="config" class="config">
 <h2>One YAML file, your whole stack</h2>
+<!-- CONFIG_GUIDE_START -->
 <pre><code class="language-yaml">name: MyApp
 services:
   - name: postgres
@@ -119,6 +124,7 @@ services:
     dependsOn: [&quot;postgres&quot;]
     liveness: { type: http, url: http://localhost:4000/health }
 </code></pre>
+<!-- CONFIG_GUIDE_END --><p><strong>Every field, every check type, and full examples are in the <a href="config-details.html">complete configuration guide →</a></strong></p>
 
   </section>
 

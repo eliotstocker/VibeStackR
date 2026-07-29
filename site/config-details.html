@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>vibestackr — a portable TUI for your local dev stack</title>
+<meta name="description" content="A portable TUI that brings up your entire local dev stack with one command — services, dependency order, liveness checks, and keyboard shortcuts, all driven by a single config file." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;400;500;700&display=swap" />
+<link rel="stylesheet" href="assets/style.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.17.0/dist/bundle/asciinema-player.css" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <span class="wordmark">vibestackr</span>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#config">Config</a>
+      <a href="#agents">Agents</a>
+      <a href="https://github.com/eliotstocker/VibeStackR">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <section id="config" class="config">
+<h1>Configuration Guide</h1>
+<p>This page covers every option available in <code>.vibestackr.yaml</code> (or <code>.vibestackr.json</code>, <code>.vibestack.yml</code>, <code>.vibestackr</code> with no extension) in depth, with worked examples. For a quick overview, see the <a href="index.html#config">config section</a> on the main page.</p>
+<h2>Full example</h2>
+<p>A stack with a database, an API that depends on it, and a web frontend:</p>
+<pre><code class="language-yaml">name: MyApp
+services:
+  - name: postgres
+    cwd: .
+    command: sh
+    args: [&quot;-c&quot;, &quot;docker start myapp-postgres 2&gt;/dev/null || docker run -d --name myapp-postgres -e POSTGRES_PASSWORD=password -p 5432:5432 postgres:16&quot;]
+    oneShot: true
+    liveness: { type: command, command: docker exec myapp-postgres pg_isready -U postgres }
+    stopCommand: docker stop myapp-postgres
+  - name: api
+    cwd: api
+    command: npm
+    args: [&quot;run&quot;, &quot;dev&quot;]
+    type: node
+    note: http://localhost:4000
+    dependsOn: [&quot;postgres&quot;]
+    envFile: api/.env
+    liveness: { type: http, url: http://localhost:4000/health }
+    onReady: echo &quot;api is up&quot;
+  - name: web
+    cwd: web
+    command: npm
+    args: [&quot;run&quot;, &quot;dev&quot;]
+    type: node
+    note: http://localhost:3000
+    dependsOn: [&quot;api&quot;]
+    watcher: true
+    liveness: { type: port, host: localhost, port: 3000 }
+dependencies:
+  - message: &quot;Docker must be running&quot;
+    when:
+      - commandFails: { command: docker, args: [&quot;info&quot;] }
+warnings:
+  - message: &quot;DATABASE_URL not set — api will fall back to localhost&quot;
+    when:
+      - envUnset: DATABASE_URL
+    service: api
+shortcuts:
+  - key: m
+    label: Run migrations
+    command: npm run migrate
+    cwd: api
+  - key: s
+    label: Seed database with a named fixture
+    command: npm run seed -- ${fixture}
+    cwd: api
+    inputs:
+      - name: fixture
+        label: Fixture name
+        default: default
+</code></pre>
+<hr>
+<h2>Top-level fields</h2>
+<h3><code>name</code></h3>
+<p>Brand shown in the TUI corner and terminal title.
+<strong>Default:</strong> <code>run-local</code></p>
+<pre><code class="language-yaml">name: MyApp
+</code></pre>
+<h3><code>services[]</code></h3>
+<p>Core: one object per managed process. All services are included by default — use <code>--exclude</code> / <code>--only</code> at runtime to scope a run.</p>
+<pre><code class="language-bash">vibestackr --only api,postgres
+vibestackr --exclude web
+</code></pre>
+<h3><code>dependencies[]</code></h3>
+<p>Pre-startup checks that can abort the entire run. Each entry needs a <code>message</code> and an optional <code>when[]</code> (all conditions must be true — see <a href="#conditions">Condition types</a>).</p>
+<pre><code class="language-yaml">dependencies:
+  - message: &quot;Node 20+ required&quot;
+    when:
+      - commandFails: { command: node, args: [&quot;-e&quot;, &quot;process.exit(process.version.split(&#39;.&#39;)[0].slice(1)&gt;=20?0:1)&quot;] }
+</code></pre>
+<h3><code>warnings[]</code></h3>
+<p>Same shape as <code>dependencies[]</code> but non-fatal — printed at startup when conditions match. Can include a <code>service</code> field to scope the warning to one service (skipped entirely if that service is excluded from the run).</p>
+<pre><code class="language-yaml">warnings:
+  - message: &quot;Using default Stripe test key&quot;
+    when:
+      - envUnset: STRIPE_SECRET_KEY
+    service: api
+</code></pre>
+<h3><code>shortcuts[]</code></h3>
+<p>Single-key TUI actions. Each has <code>key</code>, <code>label</code>, and either <code>restart</code> (restarts a named service) or <code>command</code> (runs a shell command). Supports typed <code>inputs[]</code> for interactive prompts.</p>
+<hr>
+<h2>Service fields (<code>services[].&lt;field&gt;</code>)</h2>
+<h3><code>name</code> <em>(required)</em></h3>
+<p>Unique identifier. Becomes the tab name, and is used in <code>dependsOn</code>, <code>--exclude</code>/<code>--only</code>, and shortcut references.</p>
+<h3><code>type</code></h3>
+<p>Free-form label. When set to a framework name (<code>node</code>, <code>go</code>, <code>rust</code>, <code>python</code>), vibestackr runs an automatic first-run install under the service&#39;s <code>cwd</code> — <code>npm install</code>, <code>go mod download</code>, <code>cargo fetch</code>, or <code>uv sync</code>/<code>poetry install</code> — but only when the dependency folder (<code>node_modules</code>, etc.) is missing or the manifest has changed since the last run.</p>
+<pre><code class="language-yaml">- name: api
+  type: node
+  cwd: api
+  command: npm
+  args: [&quot;run&quot;, &quot;dev&quot;]
+</code></pre>
+<h3><code>cwd</code></h3>
+<p>Working directory relative to the project root where the command runs.</p>
+<h3><code>command</code> <em>(required)</em></h3>
+<p>Executable to spawn, e.g. <code>npm</code>, <code>sh</code>, <code>./gradlew</code>.</p>
+<h3><code>args[]</code></h3>
+<p>Arguments passed to the command. Either a JSON array (needed when an argument itself contains spaces or shell metacharacters):</p>
+<pre><code class="language-yaml">args: [&quot;-c&quot;, &quot;echo hello &amp;&amp; echo world&quot;]
+</code></pre>
+<p>or a space-separated string for simple cases:</p>
+<pre><code class="language-yaml">args: run dev
+</code></pre>
+<h3><code>env</code></h3>
+<p>Object of key-value pairs merged into the service&#39;s environment, overriding both <code>process.env</code> and <code>envFile</code> on conflict.</p>
+<pre><code class="language-yaml">env:
+  NODE_ENV: development
+  PORT: &quot;4000&quot;
+</code></pre>
+<h3><code>envFile</code></h3>
+<p>Path to a <code>.env</code> file (relative to the project root) loaded into the service&#39;s env. Comments (<code>#</code>) and blank lines are skipped. A missing file is silently ignored. <code>env</code> wins over <code>envFile</code> on key conflicts.</p>
+<pre><code class="language-yaml">envFile: api/.env.local
+</code></pre>
+<h3><code>note</code></h3>
+<p>One-line description pinned atop the service&#39;s log tab — typically a URL or status string.</p>
+<pre><code class="language-yaml">note: http://localhost:4000
+</code></pre>
+<h3><code>jsonLog</code></h3>
+<p>Configures JSON-line formatting for services that emit structured logs (e.g. pino, winston, Spring Boot). Supports a <code>format</code> template with <code>${field}</code> and dot-path access, an optional <code>levelField</code> (colors the line: error=red, warn=yellow, debug=grey), and optional <code>colors</code> overrides. Raw lines are always preserved in the log buffer and on disk if <code>--persist-logs</code> is set — formatting only affects the TUI display.</p>
+<pre><code class="language-yaml">jsonLog:
+  format: &quot;${time} ${level} ${msg}&quot;
+  levelField: level
+  colors:
+    info: cyan
+</code></pre>
+<h3><code>oneShot</code></h3>
+<p>Set <code>true</code> for jobs that exit (builds, migrations, one-off container bootstrap). vibestackr treats these differently: it won&#39;t poll liveness unless one is explicitly set, and status flips to &quot;ready&quot; on success only if no liveness is configured.</p>
+<pre><code class="language-yaml">- name: migrate
+  cwd: api
+  command: npm
+  args: [&quot;run&quot;, &quot;migrate&quot;]
+  oneShot: true
+</code></pre>
+<h3><code>watcher</code></h3>
+<p>Informational flag for services that handle their own file watching (nodemon, vite HMR, etc.). Tells MCP clients this service reloads without needing a restart.</p>
+<h3><code>autoRestart</code></h3>
+<p>If a non-oneShot process exits unexpectedly, respawn it automatically with exponential backoff (1s → 2s → 4s → … → 30s cap). The backoff counter resets once a respawned instance stays up for 10 seconds. Not applied during daemon shutdown.</p>
+<pre><code class="language-yaml">autoRestart: true
+</code></pre>
+<h3><code>dependsOn[]</code></h3>
+<p>Other service names that must be ready before this one starts. Dependencies are evaluated declaratively — no service begins until everything it depends on has passed its liveness gate.</p>
+<pre><code class="language-yaml">dependsOn: [&quot;postgres&quot;, &quot;redis&quot;]
+</code></pre>
+<h3><code>liveness</code></h3>
+<p>How vibestackr knows the service is actually ready — see <a href="#liveness">Liveness check types</a> below. One of <code>type: port</code>, <code>type: http</code>, or <code>type: command</code>; each carries an optional <code>timeout</code> in seconds (default 300).</p>
+<h3><code>onSuccess</code></h3>
+<p>Shell command that fires once if this <code>oneShot</code> service exits with code 0. Fires on process exit regardless of any liveness setting.</p>
+<pre><code class="language-yaml">onSuccess: echo &quot;migration complete&quot;
+</code></pre>
+<h3><code>onReady</code></h3>
+<p>Shell command that fires once this service passes its liveness check (or immediately for <code>oneShot</code> services without liveness). Skipped entirely if liveness times out or fails.</p>
+<pre><code class="language-yaml">onReady: curl -s http://localhost:4000/warmup
+</code></pre>
+<h3><code>stopCommand</code></h3>
+<p>Shell command run in <code>cwd</code> when the service is stopped (restart, TUI &#39;reload&#39;, or shutdown). Use for cleanup of anything that outlives the spawned process, like a docker container.</p>
+<pre><code class="language-yaml">stopCommand: docker stop myapp-postgres
+</code></pre>
+<hr>
+<h2>Liveness check types</h2>
+<p><a id="liveness"></a></p>
+<h3><code>{ type: &quot;port&quot;, host, port, timeout? }</code></h3>
+<p>Succeeds when a TCP connection to <code>host</code>:<code>port</code> succeeds. Default timeout: 300s.</p>
+<pre><code class="language-yaml">liveness: { type: port, host: localhost, port: 5432, timeout: 60 }
+</code></pre>
+<h3><code>{ type: &quot;http&quot;, url, timeout? }</code></h3>
+<p>Succeeds when an HTTP GET to <code>url</code> returns a 2xx or 3xx response. Default timeout: 300s.</p>
+<pre><code class="language-yaml">liveness: { type: http, url: http://localhost:4000/health }
+</code></pre>
+<h3><code>{ type: &quot;command&quot;, command, timeout? }</code></h3>
+<p>Succeeds when the shell command exits with code 0. Default timeout: 300s. Prefer <code>oneShot: true</code> on services that don&#39;t need a real readiness gate — their status will just reflect the process exit code.</p>
+<pre><code class="language-yaml">liveness: { type: command, command: docker exec myapp-postgres pg_isready -U postgres, timeout: 30 }
+</code></pre>
+<hr>
+<h2>Condition types (for <code>dependencies[]</code> and <code>warnings[]</code>)</h2>
+<p><a id="conditions"></a></p>
+<p>All conditions use a declarative shape. When listed under <code>when[]</code>, they&#39;re ANDed together — every condition must hold for the dependency/warning to fire.</p>
+<h3><code>{ envSet: &quot;VAR&quot; }</code></h3>
+<p>Fires when the environment variable exists (any value, including empty string).</p>
+<pre><code class="language-yaml">when:
+  - envSet: DATABASE_URL
+</code></pre>
+<h3><code>{ envUnset: &quot;VAR&quot; }</code></h3>
+<p>Fires when the environment variable does not exist.</p>
+<h3><code>{ envNotIn: { var: &quot;X&quot;, values: [&quot;a&quot;, &quot;b&quot;] } }</code></h3>
+<p>Fires when the variable&#39;s current value is not one of the listed values.</p>
+<pre><code class="language-yaml">when:
+  - envNotIn: { var: NODE_ENV, values: [&quot;development&quot;, &quot;test&quot;] }
+</code></pre>
+<h3><code>{ commandExists: &quot;node&quot; }</code></h3>
+<p>Fires when the named executable is found on <code>PATH</code>.</p>
+<h3><code>{ commandMissing: &quot;npm&quot; }</code></h3>
+<p>The opposite of <code>commandExists</code> — fires when the executable is NOT on <code>PATH</code>.</p>
+<h3><code>{ commandFails: { command: &quot;...&quot;, args: [...] } }</code></h3>
+<p>Fires when the given command exits with a non-zero code.</p>
+<pre><code class="language-yaml">when:
+  - commandFails: { command: docker, args: [&quot;info&quot;] }
+</code></pre>
+<h3><code>{ included: &quot;serviceName&quot; }</code>, <code>{ excluded: &quot;serviceName&quot; }</code>, <code>{ anyIncluded: [&quot;a&quot;, &quot;b&quot;] }</code></h3>
+<p>Fire based on whether a service is currently included/excluded from the run (e.g. via <code>--exclude</code>/<code>--only</code>). Useful for context-aware warnings — e.g. warn only when a dependency service has been excluded.</p>
+<pre><code class="language-yaml">warnings:
+  - message: &quot;api excluded — web will fail to load data&quot;
+    when:
+      - excluded: api
+    service: web
+</code></pre>
+<hr>
+<h2>Shortcut fields (<code>shortcuts[].&lt;field&gt;</code>)</h2>
+<h3><code>key</code> <em>(required)</em></h3>
+<p>The single character that triggers the shortcut in the TUI.</p>
+<h3><code>label</code> <em>(required)</em></h3>
+<p>Appears in the bottom status bar and <code>--help</code>.</p>
+<h3><code>restart</code></h3>
+<p>A service name. Restarts (or starts, if not running) that service when pressed. Mutually exclusive with <code>command</code>.</p>
+<pre><code class="language-yaml">- key: r
+  label: Restart api
+  restart: api
+</code></pre>
+<h3><code>command</code></h3>
+<p>Shell command to run (supports <code>${name}</code> substitution from <code>inputs[]</code>). Mutually exclusive with <code>restart</code>. Can be paired with <code>cwd</code> for a working directory.</p>
+<h3><code>inputs[]</code></h3>
+<p>Makes the shortcut interactive. Each entry needs a <code>name</code>, and optional <code>label</code>, <code>placeholder</code>, and/or <code>default</code>. The TUI shows a text box per input; the MCP <code>run_shortcut</code> tool gains typed parameters. Collected values substitute into <code>command</code> by their <code>name</code>.</p>
+<pre><code class="language-yaml">- key: s
+  label: Seed database with a named fixture
+  command: npm run seed -- ${fixture}
+  cwd: api
+  inputs:
+    - name: fixture
+      label: Fixture name
+      placeholder: e.g. large-dataset
+      default: default
+</code></pre>
+<hr>
+<h2>Config format options</h2>
+<ul>
+<li><code>.vibestackr.yaml</code> or <code>.vibestack.yml</code> — parsed as YAML</li>
+<li><code>.vibestackr.json</code> or <code>.vibestackr</code> (no extension) — parsed as JSON</li>
+<li><code>--config path</code> — load any known format by explicit path</li>
+</ul>
+<p>The schema lives at <a href="https://github.com/eliotstocker/VibeStackR/blob/main/schema/config.schema.json">schema/config.schema.json</a>; it&#39;s also what editor autocomplete and <code>vibestackr init</code> use as the source of truth.</p>
+    </section>
+
+</main>
+
+<footer>
+  <p>MIT licensed. <a href="https://github.com/eliotstocker/VibeStackR">github.com/eliotstocker/VibeStackR</a></p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.17.0/dist/bundle/asciinema-player.min.js"></script>
+<script>
+  AsciinemaPlayer.create('assets/demo.cast', document.getElementById('demo-player'), {
+    autoPlay: true,
+    loop: true,
+    controls: false,
+    fit: 'width'
+  });
+</script>
+</body>
+</html>

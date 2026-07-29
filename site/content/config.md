@@ -1,5 +1,6 @@
 ## One YAML file, your whole stack
 
+<!-- CONFIG_GUIDE_START -->
 ```yaml
 name: MyApp
 services:
@@ -17,3 +18,6 @@ services:
     dependsOn: ["postgres"]
     liveness: { type: http, url: http://localhost:4000/health }
 ```
+<!-- CONFIG_GUIDE_END -->
+
+**Every field, every check type, and full examples are in the [complete configuration guide →](config-details.html)**
