@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/eliotstocker/VibeStackR/compare/v1.3.0...v1.3.1) (2026-07-31)
+
+
+### Bug Fixes
+
+* small built in shortcut tweaks ([c025dd9](https://github.com/eliotstocker/VibeStackR/commit/c025dd99fd47627a2addb64026f7c41db5e81040))
+
 # [1.3.0](https://github.com/eliotstocker/VibeStackR/compare/v1.2.6...v1.3.0) (2026-07-31)
 
 

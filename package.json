@@ -1,6 +1,6 @@
 {
   "name": "vibestackr",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "A Simple UI, Task Runner, and MCP server that brings up your local stack in dependency order, watches liveness, wires up keyboard shortcuts, and lets your agent see exactly what you can see. All driven by a single config file in your monorepo or meta-repo — your agent can write that config for you, drive and observe the stack via MCP, and reload it on the fly, no restart needed.",
   "license": "MIT",
   "author": "Eliot Stocker",
