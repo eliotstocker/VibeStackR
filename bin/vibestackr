@@ -25,9 +25,6 @@
 // Usage: npx vibestackr [--config <path>] [--background] [--exclude <name>[,<name>...]] [--only <name>[,<name>...]] [--persist-logs] [--service-log]
 'use strict'
 
-const fs = require('fs')
-const path = require('path')
-const { spawn } = require('child_process')
 const commandLineArgs = require('command-line-args')
 const commandLineUsage = require('command-line-usage')
 const { loadConfig } = require('../lib/config')
@@ -37,61 +34,19 @@ const { LOGO_ANSI } = require('../lib/logo')
 const { version: VIBESTACKR_VERSION } = require('../package.json')
 const { createAttachClient } = require('../lib/attach-client')
 const { startControlSocket, stopControlSocket, socketPath, daemonLogPath, isSocketAlive, requestSocket } = require('../lib/control-socket')
+const { startDaemon, stopDaemon } = require('../lib/daemon')
 
 // The directory the user invoked `npx vibestackr` from — NOT where the
 // vibestackr package itself is installed. Config, services' cwds, and logs
 // all live relative to the consuming project.
 const ROOT = process.cwd()
 
-const DAEMON_STARTUP_TIMEOUT_MS = 5000
-const STOP_TIMEOUT_MS = 10000
-const POLL_MS = 100
-
-// Spawns this same file as a detached daemon (stdio redirected to its own
-// log file, since it has no terminal of its own) and waits for either the
-// control socket to come alive (success) or the process to exit early —
-// e.g. a checkDeps() failure — whichever happens first, so a broken config
-// fails fast instead of silently leaving nothing running.
-async function startDaemon(daemonArgv) {
-  const logPath = daemonLogPath(ROOT)
-  await fs.promises.mkdir(path.dirname(logPath), { recursive: true })
-  const logFd = fs.openSync(logPath, 'a')
-  const child = spawn(process.execPath, [__filename, ...daemonArgv, '--daemon'], {
-    cwd: ROOT,
-    detached: true,
-    stdio: ['ignore', logFd, logFd],
-  })
-  fs.closeSync(logFd) // the child has its own duplicated fd now; this process doesn't need to keep it open
-  child.unref()
-
-  let exited = false
-  child.once('exit', () => { exited = true })
-  const start = Date.now()
-  while (Date.now() - start < DAEMON_STARTUP_TIMEOUT_MS) {
-    if (await isSocketAlive(socketPath(ROOT))) return { ok: true, pid: child.pid }
-    if (exited) return { ok: false }
-    await new Promise((r) => setTimeout(r, POLL_MS))
-  }
-  return { ok: false }
-}
-
 async function stopCommand() {
   try {
-    await requestSocket(ROOT, 'quit', {})
+    await stopDaemon(ROOT)
   } catch (err) {
     console.error(`[vibestackr] ${err.message}`)
     process.exit(1)
-  }
-  // Wait for the daemon to actually finish (killing every service can take a
-  // moment) rather than declaring success the instant the request was merely
-  // accepted.
-  const start = Date.now()
-  while (await isSocketAlive(socketPath(ROOT))) {
-    if (Date.now() - start > STOP_TIMEOUT_MS) {
-      console.error(`[vibestackr] stop requested, but it's still shutting down after ${STOP_TIMEOUT_MS / 1000}s — check ${daemonLogPath(ROOT)}.`)
-      process.exit(1)
-    }
-    await new Promise((r) => setTimeout(r, POLL_MS))
   }
   console.log('[vibestackr] stopped.')
 }
@@ -225,6 +180,7 @@ function main(argv) {
     // response to whoever asked for the reload, rather than crashing this
     // already-running daemon.
     async function reloadConfigFromDisk() {
+      engine.loadEnvFile('.env', { overwrite: true })
       const { config: newConfig } = loadConfig(ROOT, configArg)
       engine.reloadConfig(newConfig)
     }
@@ -301,7 +257,7 @@ function main(argv) {
 
   async function startNewDaemonOrExit() {
     const daemonArgv = argv.filter((a) => a !== '--background' && a !== '-b')
-    const result = await startDaemon(daemonArgv)
+    const result = await startDaemon(ROOT, daemonArgv)
     if (!result.ok) {
       console.error(`[vibestackr] failed to start — see ${daemonLogPath(ROOT)} for details`)
       process.exit(1)

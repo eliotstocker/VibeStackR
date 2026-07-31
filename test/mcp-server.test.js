@@ -49,11 +49,11 @@ async function withMcpClient(config, fn) {
   }
 }
 
-test('lists all 8 tools', async () => {
+test('lists all 10 tools', async () => {
   await withMcpClient({ services: [], shortcuts: [] }, async ({ client }) => {
     const { tools } = await client.listTools()
     const names = tools.map((t) => t.name).sort()
-    assert.deepEqual(names, ['get_config_schema', 'get_logs', 'get_services', 'get_status', 'list_shortcuts', 'reload_config', 'restart_service', 'run_shortcut'].sort())
+    assert.deepEqual(names, ['get_config_schema', 'get_logs', 'get_services', 'get_status', 'list_shortcuts', 'reload_config', 'restart_service', 'run_shortcut', 'start_daemon', 'stop_daemon'].sort())
   })
 })
 
