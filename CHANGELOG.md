@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/eliotstocker/VibeStackR/compare/v1.2.6...v1.3.0) (2026-07-31)
+
+
+### Features
+
+* m shortcut for text selection + new deamon tools in mcp ([bd214f3](https://github.com/eliotstocker/VibeStackR/commit/bd214f3058a056b2a9adad523fed80ce3ac077d9))
+
 ## [1.2.6](https://github.com/eliotstocker/VibeStackR/compare/v1.2.5...v1.2.6) (2026-07-28)
 
 
