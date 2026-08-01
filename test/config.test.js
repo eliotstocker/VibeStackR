@@ -5,7 +5,7 @@ const assert = require('node:assert/strict')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { loadConfig } = require('../lib/config')
+const { loadConfig, findProjectRoot } = require('../lib/config')
 
 function withTmpDir(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-config-test-'))
@@ -156,5 +156,39 @@ test('accepts a valid config using every top-level and service field', () => {
     }
     fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify(config))
     assert.doesNotThrow(() => loadConfig(dir))
+  })
+})
+
+test('findProjectRoot returns startDir itself when the config lives there', () => {
+  withTmpDir((dir) => {
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), '{"services":[]}')
+    assert.equal(fs.realpathSync(findProjectRoot(dir)), fs.realpathSync(dir))
+  })
+})
+
+test('findProjectRoot walks upward to find a config from a nested subdirectory', () => {
+  withTmpDir((dir) => {
+    fs.writeFileSync(path.join(dir, '.vibestackr.yaml'), 'services: []\n')
+    const nested = path.join(dir, 'packages', 'api', 'src')
+    fs.mkdirSync(nested, { recursive: true })
+    assert.equal(fs.realpathSync(findProjectRoot(nested)), fs.realpathSync(dir))
+  })
+})
+
+test('findProjectRoot prefers the closest ancestor config over a further one', () => {
+  withTmpDir((dir) => {
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), '{"services":[]}')
+    const nested = path.join(dir, 'packages', 'api')
+    fs.mkdirSync(nested, { recursive: true })
+    fs.writeFileSync(path.join(nested, '.vibestackr.json'), '{"services":[]}')
+    assert.equal(fs.realpathSync(findProjectRoot(nested)), fs.realpathSync(nested))
+  })
+})
+
+test('findProjectRoot falls back to startDir when no config exists anywhere above it', () => {
+  withTmpDir((dir) => {
+    const nested = path.join(dir, 'a', 'b')
+    fs.mkdirSync(nested, { recursive: true })
+    assert.equal(fs.realpathSync(findProjectRoot(nested)), fs.realpathSync(nested))
   })
 })

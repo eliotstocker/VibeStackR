@@ -27,7 +27,7 @@
 
 const commandLineArgs = require('command-line-args')
 const commandLineUsage = require('command-line-usage')
-const { loadConfig } = require('../lib/config')
+const { loadConfig, findProjectRoot } = require('../lib/config')
 const { createEngine } = require('../lib/engine')
 const { createUI } = require('../lib/ui')
 const { LOGO_ANSI } = require('../lib/logo')
@@ -36,10 +36,31 @@ const { createAttachClient } = require('../lib/attach-client')
 const { startControlSocket, stopControlSocket, socketPath, daemonLogPath, isSocketAlive, requestSocket } = require('../lib/control-socket')
 const { startDaemon, stopDaemon } = require('../lib/daemon')
 
-// The directory the user invoked `npx vibestackr` from — NOT where the
-// vibestackr package itself is installed. Config, services' cwds, and logs
-// all live relative to the consuming project.
-const ROOT = process.cwd()
+// Peeked here (once, at module load) rather than inside main() below because
+// every subcommand needs it to compute ROOT, not just the default run/attach
+// path — `stop`/`reload`/an implicit reattach all have to hash the *same*
+// root a running daemon was started from, regardless of which subdirectory
+// of the project this was invoked from. A separate `partial: true` parse
+// (ignoring every other flag) keeps this independent of the full
+// OPTION_DEFINITIONS list, which main() below doesn't build until after
+// config is loaded.
+let configArg
+try {
+  ({ config: configArg } = commandLineArgs([{ name: 'config', alias: 'c', type: String }], { argv: process.argv.slice(2), partial: true }))
+} catch (err) {
+  console.error(err.message)
+  process.exit(1)
+}
+
+// The project root — NOT necessarily process.cwd(), which is just wherever
+// the user happened to invoke `npx vibestackr` from, and NOT where the
+// vibestackr package itself is installed either. Config, services' cwds, and
+// logs all live relative to this. An explicit --config keeps today's
+// behavior (resolved relative to cwd, root stays cwd — the file it points to
+// might not even be inside this project); otherwise walk upward from cwd
+// looking for .vibestackr.json/.vibestackr.yaml/etc, so `vibestackr` (and
+// `stop`/`reload`/`mcp`) works the same from any subdirectory of the project.
+const ROOT = configArg ? process.cwd() : findProjectRoot(process.cwd())
 
 async function stopCommand() {
   try {
@@ -62,19 +83,9 @@ async function reloadCommand() {
 }
 
 function main(argv) {
-  // Peek at --config/-c before anything else — it decides which file
-  // loadConfig() below reads, and that config's services[] in turn feeds the
-  // --exclude/--only help text further down. A separate `partial: true` parse
-  // (ignoring every other flag) keeps this independent of the full
-  // OPTION_DEFINITIONS list, which isn't built until after config is loaded.
-  let configArg
-  try {
-    ({ config: configArg } = commandLineArgs([{ name: 'config', alias: 'c', type: String }], { argv, partial: true }))
-  } catch (err) {
-    console.error(err.message)
-    process.exit(1)
-  }
-
+  // configArg (--config/-c) was already peeked at module load, above — it
+  // decides which file loadConfig() below reads, and that config's
+  // services[] in turn feeds the --exclude/--only help text further down.
   let config
   try {
     ({ config } = loadConfig(ROOT, configArg))
