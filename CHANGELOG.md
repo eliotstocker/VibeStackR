@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/eliotstocker/VibeStackR/compare/v1.3.1...v1.3.2) (2026-08-01)
+
+
+### Bug Fixes
+
+* resolve frome and sub dir ([8ca2d88](https://github.com/eliotstocker/VibeStackR/commit/8ca2d882735397721a31581dd34d7b6cd49d7456))
+
 ## [1.3.1](https://github.com/eliotstocker/VibeStackR/compare/v1.3.0...v1.3.1) (2026-07-31)
 
 
