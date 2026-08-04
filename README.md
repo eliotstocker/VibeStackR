@@ -57,7 +57,7 @@ npx vibestackr init
 | Command | Description |
 | --- | --- |
 | `vibestackr` | Start the stack (or attach to one already running) and open the TUI. |
-| `vibestackr init` | Hand an AI coding agent the job of writing `.vibestackr.yaml` from scratch by inspecting your repo. |
+| `vibestackr init` | Hand an AI coding agent the job of writing `.vibestackr.yaml` from scratch by inspecting your repo. Pass `--mcp` to update MCP config files only, or `--agents` to update `AGENTS.md` instruction files only (`vibestackr init --mcp --agents`). |
 | `vibestackr config "<description>"` | Hand an agent a targeted edit to an existing config instead of a from-scratch rewrite. |
 | `vibestackr mcp` | Run the MCP server, exposing the running stack to AI coding agents. |
 | `vibestackr stop` | Stop the background stack and every service in it. |
@@ -121,7 +121,7 @@ Plus whatever you define in `shortcuts[]`.
 [Model Context Protocol](https://modelcontextprotocol.io): `get_status`,
 `get_logs`, `get_services`, `restart_service`, `reload_config`,
 `list_shortcuts`, `run_shortcut`. Register it as a project-scoped MCP server
-(e.g. in `.mcp.json`, so it's spawned with your project as its working
+(e.g. in `.mcp.json`, `.agents/mcp_config.json`, or `.opencode/opencode.json`, so it's spawned with your project as its working
 directory):
 
 ```json

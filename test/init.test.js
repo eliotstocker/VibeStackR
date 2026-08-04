@@ -5,7 +5,7 @@ const assert = require('node:assert/strict')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { buildPrompt, buildUpdatePrompt, configMain, detectCli, CLI_INVOCATIONS } = require('../lib/init')
+const { buildPrompt, buildUpdatePrompt, main, configMain, detectCli, CLI_INVOCATIONS, ensureMcpConfig } = require('../lib/init')
 
 // detectCli() shells out to `sh -c "command -v <name>"`, which resolves
 // against the CURRENT process's PATH — these tests manipulate PATH to
@@ -97,3 +97,128 @@ test('detectCli returns null when none of the six are on PATH', () => {
     assert.equal(detectCli(), null)
   })
 })
+
+test('ensureMcpConfig writes .mcp.json and .agents/mcp_config.json', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-mcp-test-'))
+  try {
+    withPath('/usr/bin:/bin', () => {
+      ensureMcpConfig(dir)
+    })
+    const mcpJson = JSON.parse(fs.readFileSync(path.join(dir, '.mcp.json'), 'utf8'))
+    assert.deepEqual(mcpJson.mcpServers.vibestackr, { command: 'npx', args: ['vibestackr', 'mcp'] })
+
+    const agentsMcpJson = JSON.parse(fs.readFileSync(path.join(dir, '.agents', 'mcp_config.json'), 'utf8'))
+    assert.deepEqual(agentsMcpJson.mcpServers.vibestackr, { command: 'npx', args: ['vibestackr', 'mcp'] })
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('ensureMcpConfig writes .opencode/opencode.json when opencode is on PATH or .opencode exists', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-mcp-test-'))
+  fs.writeFileSync(path.join(dir, 'opencode'), '#!/bin/sh\necho fake\n')
+  fs.chmodSync(path.join(dir, 'opencode'), 0o755)
+  try {
+    withPath(`${dir}:/usr/bin:/bin`, () => {
+      ensureMcpConfig(dir)
+    })
+    const opencodeJson = JSON.parse(fs.readFileSync(path.join(dir, '.opencode', 'opencode.json'), 'utf8'))
+    assert.deepEqual(opencodeJson.mcp.vibestackr, { type: 'local', command: ['npx', 'vibestackr', 'mcp'], enabled: true })
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('ensureMcpConfig updates existing opencode.json in project root', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-mcp-test-'))
+  fs.writeFileSync(path.join(dir, 'opencode.json'), JSON.stringify({ mcp: { other: { type: 'local' } } }))
+  try {
+    withPath('/usr/bin:/bin', () => {
+      ensureMcpConfig(dir)
+    })
+    const opencodeJson = JSON.parse(fs.readFileSync(path.join(dir, 'opencode.json'), 'utf8'))
+    assert.deepEqual(opencodeJson.mcp.other, { type: 'local' })
+    assert.deepEqual(opencodeJson.mcp.vibestackr, { type: 'local', command: ['npx', 'vibestackr', 'mcp'], enabled: true })
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('ensureMcpConfig does not overwrite custom vibestackr entry if already present', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-mcp-test-'))
+  fs.writeFileSync(path.join(dir, '.mcp.json'), JSON.stringify({ mcpServers: { vibestackr: { command: 'custom' } } }))
+  try {
+    withPath('/usr/bin:/bin', () => {
+      ensureMcpConfig(dir)
+    })
+    const mcpJson = JSON.parse(fs.readFileSync(path.join(dir, '.mcp.json'), 'utf8'))
+    assert.equal(mcpJson.mcpServers.vibestackr.command, 'custom')
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('vibestackr init --mcp updates MCP configs and exits cleanly', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-mcp-test-'))
+  const origCwd = process.cwd()
+  const origExit = process.exit
+  let exitCode = null
+  process.chdir(dir)
+  process.exit = (code) => { exitCode = code; throw new Error('EXIT_TEST') }
+  try {
+    await assert.rejects(async () => {
+      await main(['--mcp'])
+    }, /EXIT_TEST/)
+    assert.equal(exitCode, 0)
+    assert.equal(fs.existsSync(path.join(dir, '.mcp.json')), true)
+    assert.equal(fs.existsSync(path.join(dir, '.agents', 'mcp_config.json')), true)
+  } finally {
+    process.chdir(origCwd)
+    process.exit = origExit
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('vibestackr init --agents updates AGENTS.md when config exists and exits cleanly', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-agents-test-'))
+  fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify({ name: 'TestApp', services: [] }))
+  const origCwd = process.cwd()
+  const origExit = process.exit
+  let exitCode = null
+  process.chdir(dir)
+  process.exit = (code) => { exitCode = code; throw new Error('EXIT_TEST') }
+  try {
+    await assert.rejects(async () => {
+      await main(['--agents'])
+    }, /EXIT_TEST/)
+    assert.equal(exitCode, 0)
+    const content = fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8')
+    assert.match(content, /## vibestackr/)
+  } finally {
+    process.chdir(origCwd)
+    process.exit = origExit
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('vibestackr init --agents exits 1 when no stack config exists', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-agents-test-'))
+  const origCwd = process.cwd()
+  const origExit = process.exit
+  let exitCode = null
+  process.chdir(dir)
+  process.exit = (code) => { exitCode = code; throw new Error('EXIT_TEST') }
+  try {
+    await assert.rejects(async () => {
+      await main(['--agents'])
+    }, /EXIT_TEST/)
+    assert.equal(exitCode, 1)
+  } finally {
+    process.chdir(origCwd)
+    process.exit = origExit
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+
+
