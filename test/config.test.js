@@ -192,3 +192,31 @@ test('findProjectRoot falls back to startDir when no config exists anywhere abov
     assert.equal(fs.realpathSync(findProjectRoot(nested)), fs.realpathSync(nested))
   })
 })
+
+test('findProjectRoot and findConfigFile ignore directories with candidate names', () => {
+  withTmpDir((dir) => {
+    fs.mkdirSync(path.join(dir, '.vibestackr'))
+    assert.throws(() => loadConfig(dir), /no config found/)
+    const nested = path.join(dir, 'nested')
+    fs.mkdirSync(nested)
+    assert.equal(fs.realpathSync(findProjectRoot(nested)), fs.realpathSync(nested))
+  })
+})
+
+test('findProjectRoot and findConfigFile ignore directories with candidate names and find real config files', () => {
+  withTmpDir((dir) => {
+    fs.mkdirSync(path.join(dir, '.vibestackr'))
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify({ services: [{ name: 'web', command: 'true' }] }))
+    const { config, file } = loadConfig(dir)
+    assert.equal(config.services[0].name, 'web')
+    assert.match(file, /\.vibestackr\.json$/)
+  })
+})
+
+test('loadConfig with explicit path that is a directory throws a clear error', () => {
+  withTmpDir((dir) => {
+    const dirPath = path.join(dir, 'config-dir')
+    fs.mkdirSync(dirPath)
+    assert.throws(() => loadConfig(dir, 'config-dir'), /config path is not a file/)
+  })
+})
