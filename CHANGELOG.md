@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/eliotstocker/VibeStackR/compare/v1.3.3...v1.4.0) (2026-08-04)
+
+
+### Features
+
+* add support for additional agent MCP configs and init --mcp/--agents flags ([cc0c6f4](https://github.com/eliotstocker/VibeStackR/commit/cc0c6f48e1ade95b93fd9660d75978b9dc7b1410))
+
 ## [1.3.3](https://github.com/eliotstocker/VibeStackR/compare/v1.3.2...v1.3.3) (2026-08-04)
 
 
