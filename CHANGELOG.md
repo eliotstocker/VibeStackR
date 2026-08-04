@@ -1,3 +1,10 @@
+## [1.3.3](https://github.com/eliotstocker/VibeStackR/compare/v1.3.2...v1.3.3) (2026-08-04)
+
+
+### Bug Fixes
+
+* solve vibestackr crash on finding config file ([58c488c](https://github.com/eliotstocker/VibeStackR/commit/58c488c800d8eea99e440442b541cd958216570f))
+
 ## [1.3.2](https://github.com/eliotstocker/VibeStackR/compare/v1.3.1...v1.3.2) (2026-08-01)
 
 
