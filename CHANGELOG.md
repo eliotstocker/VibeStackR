@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/eliotstocker/VibeStackR/compare/v1.4.0...v1.5.0) (2026-08-06)
+
+
+### Features
+
+* support installation switches such as extra, omit, features ([1d1ffb6](https://github.com/eliotstocker/VibeStackR/commit/1d1ffb64bd7a432f768ca6a72a3c2863cf19f471))
+
 # [1.4.0](https://github.com/eliotstocker/VibeStackR/compare/v1.3.3...v1.4.0) (2026-08-04)
 
 
