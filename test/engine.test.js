@@ -472,6 +472,24 @@ test('pythonInstallCommand: falls back to pip -r requirements.txt with no lockfi
   assert.deepEqual(pythonInstallCommand(dir), { command: 'pip', args: ['install', '-r', 'requirements.txt'] })
 })
 
+test('pythonInstallCommand: passes extra[] as repeated --extra flags for uv', () => {
+  const dir = tmpProjectDir()
+  fs.writeFileSync(`${dir}/uv.lock`, '')
+  assert.deepEqual(pythonInstallCommand(dir, ['dev', 'test']), { command: 'uv', args: ['sync', '--extra', 'dev', '--extra', 'test'] })
+})
+
+test('pythonInstallCommand: passes extra[] as repeated --with flags for poetry', () => {
+  const dir = tmpProjectDir()
+  fs.writeFileSync(`${dir}/poetry.lock`, '')
+  assert.deepEqual(pythonInstallCommand(dir, ['dev']), { command: 'poetry', args: ['install', '--with', 'dev'] })
+})
+
+test('pythonInstallCommand: ignores extra[] for pip (no equivalent concept)', () => {
+  const dir = tmpProjectDir()
+  fs.writeFileSync(`${dir}/requirements.txt`, '')
+  assert.deepEqual(pythonInstallCommand(dir, ['dev']), { command: 'pip', args: ['install', '-r', 'requirements.txt'] })
+})
+
 // ── interactive shortcuts[].inputs ────────────────────────────────────────
 
 test('interpolateShortcutInputs: substitutes ${name} with the given value', () => {

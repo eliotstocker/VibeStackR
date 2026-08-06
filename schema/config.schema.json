@@ -71,7 +71,29 @@
         "liveness": { "$ref": "#/definitions/liveness" },
         "onSuccess": { "type": "string", "description": "Shell command run once this oneShot service's process exits with code 0. Fires on process exit, not on liveness passing." },
         "onReady": { "type": "string", "description": "Shell command run once this service is actually ready (liveness passed, or process exited if oneShot with no liveness). Skipped if liveness times out or fails." },
-        "stopCommand": { "type": "string", "description": "Shell command run in cwd when this service is stopped (restart, `vibestackr stop`, or Ctrl+C/'q'/'reload' shutdown) — for cleanup of anything that outlives the spawned process itself, e.g. `docker stop my-postgres` or `docker compose down` for a oneShot `docker run -d`/`docker compose up -d` service whose own process already exited long ago." }
+        "stopCommand": { "type": "string", "description": "Shell command run in cwd when this service is stopped (restart, `vibestackr stop`, or Ctrl+C/'q'/'reload' shutdown) — for cleanup of anything that outlives the spawned process itself, e.g. `docker stop my-postgres` or `docker compose down` for a oneShot `docker run -d`/`docker compose up -d` service whose own process already exited long ago." },
+        "install": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Extra options for the automatic dependency-install step (see `type`).",
+          "properties": {
+            "extra": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Optional dependency groups to include, mapped to each install tool's own flag: uv sync --extra <value>, poetry install --with <value>. Ignored for pipenv/pip (no equivalent concept)."
+            },
+            "omit": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "For type 'node' services: dependency types to skip, passed as repeated `--omit=<value>` flags to `npm install` (e.g. 'dev', 'optional', 'peer')."
+            },
+            "features": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "For type 'rust' services: cargo features to enable, passed as repeated `--features <value>` flags to `cargo fetch`."
+            }
+          }
+        }
       }
     },
     "jsonLog": {
