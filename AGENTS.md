@@ -58,6 +58,14 @@ provided by whatever project drops `vibestackr` into itself.
   tick) and feeds them into `lib/ui.js` exactly as the real engine would.
   `quit()` asks the daemon to fully stop; `detach()` just stops polling and
   leaves the daemon running — these back the `q` vs `b` shortcuts.
+- `lib/job-discovery.js` — pure, stateless auto-discovery of one-off jobs
+  runnable in a service's `cwd`: npm scripts (`package.json`), Makefile
+  targets, Gradle tasks (`build.gradle`/`.kts`), Python project scripts
+  (`pyproject.toml`), and Cargo binary targets (`Cargo.toml`'s `[[bin]]`, or
+  the default bin at `src/main.rs`). No config surface — always re-read from
+  disk on each call, not cached, so an edited manifest is picked up
+  immediately. `id` (e.g. `npm:build`) is source-prefixed since the same task
+  name can exist under multiple sources in the same `cwd`.
 - `lib/logo.js` — the pink-to-orange gradient ASCII banner pinned atop the
   "vibestackr" (run-local) tab. Pure branding, no config surface.
 - `lib/json-log.js` — pure formatting logic (no blessed dependency) for a
@@ -69,7 +77,8 @@ provided by whatever project drops `vibestackr` into itself.
   reformats for rendering.
 - `lib/control-socket.js` — the engine-facing side of the MCP integration.
   Runs inside the daemon process; exposes `status`/`logs`/`tail`/`restart`/
-  `shortcuts`/`run_shortcut`/`quit` over a Unix domain socket at
+  `shortcuts`/`run_shortcut`/`list_jobs`/`run_job`/`job_status`/`quit` over a
+  Unix domain socket at
   `~/.vibestackr/sockets/<sha1(realpath(root))>.sock`. Also exports
   `requestSocket(root, method, params)`, the client side of that same
   protocol — shared by `lib/mcp-server.js`, `lib/attach-client.js`, and
@@ -208,8 +217,13 @@ second instead of re-fetching everything each tick — `total` comes from
 ring buffer's own trimming, unlike `buf.length`), `services` (static,
 config-derived info per service — type, note, `watcher`, oneShot, dependsOn,
 liveness type, `included`, current `status` — as opposed to `status` above,
-which is runtime-only), `restart`, `shortcuts`, `run_shortcut`, and `quit`
-(defers the actual shutdown via `setImmediate` so its own `{ok: true}`
+which is runtime-only), `restart`, `shortcuts`, `run_shortcut`, `list_jobs`
+(`{service?}` → jobs discovered via `lib/job-discovery.js` for one service, or
+every service if `service` is omitted), `run_job` (`{service, job}` → spawns
+it, returns a `tab` the caller can `tail`/`get_logs` like any other tab —
+reuses `lib/engine.js`'s existing tab-keyed log buffers, no changes needed
+there), `job_status` (`{tab}` → `running`/`succeeded`/`failed:<code>`), and
+`quit` (defers the actual shutdown via `setImmediate` so its own `{ok: true}`
 response has a chance to flush before the process serving it exits).
 - `requestSocket(root, method, params)` (also in `lib/control-socket.js`) is
   the client side of that same protocol — shared by `lib/mcp-server.js`,
@@ -217,8 +231,14 @@ response has a chance to flush before the process serving it exits).
   than each reimplementing connect/write-one-line/read-one-line/close.
 - `vibestackr mcp` (`lib/mcp-server.js`) is a thin client: it connects to the
   socket and translates MCP tool calls into socket requests, never
-  duplicating any engine logic itself. 6 tools: `get_status`, `get_logs`,
-  `get_services`, `restart_service`, `list_shortcuts`, `run_shortcut`. If no
+  duplicating any engine logic itself. 13 tools: `start_daemon`,
+  `stop_daemon`, `get_config_schema`, `get_status`, `get_logs`,
+  `get_services`, `restart_service`, `reload_config`, `list_shortcuts`,
+  `run_shortcut`, `list_scripts`, `run_script`, `get_job_status`.
+  `list_scripts`/`run_script` wrap `list_jobs`/`run_job` above — an agent runs
+  a discovered job then polls its output via the existing `get_logs` tool
+  with the returned `tab` as `name`, and its completion via `get_job_status`
+  (wraps `job_status` above) with that same `tab`. If no
   daemon is running, a tool call gets back a clear "vibestackr isn't running
   for this project — start it with `npx vibestackr` first" error
   (`isError: true`) instead of hanging or crashing the MCP process.

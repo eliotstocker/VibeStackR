@@ -290,6 +290,50 @@ test('restartService replaces the running process', async () => {
   })
 })
 
+test('runJob: succeeding job streams output into its own tab and reports "succeeded"', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-job-test-'))
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { greet: 'echo hello-from-job' } }))
+  const config = { services: [{ name: 'web', cwd: dir, command: 'sh', args: ['-c', 'sleep 30'] }] }
+  await withEngine(config, {}, async (engine) => {
+    const tab = engine.runJob('web', 'npm:greet')
+    assert.match(tab, /^job:web:npm:greet:\d+$/)
+    await waitUntil(() => engine.getJobStatus(tab) === 'succeeded')
+    assert.ok(engine.getLogs(tab).some((l) => l.includes('hello-from-job')))
+  })
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('runJob: failing job reports "failed:<code>"', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-job-test-'))
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { boom: 'exit 3' } }))
+  const config = { services: [{ name: 'web', cwd: dir, command: 'sh', args: ['-c', 'sleep 30'] }] }
+  await withEngine(config, {}, async (engine) => {
+    const tab = engine.runJob('web', 'npm:boom')
+    await waitUntil(() => engine.getJobStatus(tab) === 'failed:3')
+  })
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('runJob: unknown service or job throws', async () => {
+  const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'sleep 30'] }] }
+  await withEngine(config, {}, async (engine) => {
+    assert.throws(() => engine.runJob('nope', 'npm:build'), /no service/)
+    assert.throws(() => engine.runJob('web', 'npm:build'), /no job/)
+  })
+})
+
+test('discoverJobsForService/discoverAllJobs surface npm scripts per service', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-job-test-'))
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { build: 'echo build' } }))
+  const config = { services: [{ name: 'web', cwd: dir, command: 'sh', args: ['-c', 'sleep 30'] }] }
+  await withEngine(config, {}, async (engine) => {
+    assert.deepEqual(engine.discoverJobsForService('web'), [{ id: 'npm:build', source: 'npm', label: 'build', command: 'npm', args: ['run', 'build'] }])
+    assert.deepEqual(engine.discoverAllJobs(), [{ name: 'web', jobs: engine.discoverJobsForService('web') }])
+    assert.throws(() => engine.discoverJobsForService('nope'), /no service/)
+  })
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
 test('autoRestart: a crashing service is automatically respawned', async () => {
   const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'exit 1'], autoRestart: true }] }
   await withEngine(config, {}, async (engine) => {

@@ -49,11 +49,11 @@ async function withMcpClient(config, fn) {
   }
 }
 
-test('lists all 10 tools', async () => {
+test('lists all 13 tools', async () => {
   await withMcpClient({ services: [], shortcuts: [] }, async ({ client }) => {
     const { tools } = await client.listTools()
     const names = tools.map((t) => t.name).sort()
-    assert.deepEqual(names, ['get_config_schema', 'get_logs', 'get_services', 'get_status', 'list_shortcuts', 'reload_config', 'restart_service', 'run_shortcut', 'start_daemon', 'stop_daemon'].sort())
+    assert.deepEqual(names, ['get_config_schema', 'get_job_status', 'get_logs', 'get_services', 'get_status', 'list_scripts', 'list_shortcuts', 'reload_config', 'restart_service', 'run_script', 'run_shortcut', 'start_daemon', 'stop_daemon'].sort())
   })
 })
 
@@ -122,6 +122,28 @@ test('get_status / restart_service / list_shortcuts / run_shortcut / get_logs ro
   })
 })
 
+test('list_scripts / run_script round-trip over real MCP tool calls', async () => {
+  const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'sleep 10'] }], shortcuts: [] }
+  await withMcpClient(config, async ({ client, engine, root }) => {
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts: { greet: 'echo hi-from-script' } }))
+
+    const scoped = await client.callTool({ name: 'list_scripts', arguments: { service: 'web' } })
+    assert.deepEqual(toolText(scoped), { jobs: [{ id: 'npm:greet', source: 'npm', label: 'greet', command: 'npm', args: ['run', 'greet'] }] })
+
+    const all = await client.callTool({ name: 'list_scripts', arguments: {} })
+    assert.deepEqual(toolText(all), { services: [{ name: 'web', jobs: toolText(scoped).jobs }] })
+
+    const ran = await client.callTool({ name: 'run_script', arguments: { service: 'web', script: 'npm:greet' } })
+    const { tab, status } = toolText(ran)
+    assert.match(tab, /^job:web:npm:greet:\d+$/)
+    assert.equal(status, 'running')
+    await waitUntil(() => engine.getJobStatus(tab) === 'succeeded')
+
+    const logs = await client.callTool({ name: 'get_logs', arguments: { name: tab } })
+    assert.ok(toolText(logs).lines.some((l) => l.includes('hi-from-script')))
+  })
+})
+
 test('run_shortcut passes `inputs` through to an interactive shortcut', async () => {
   const config = {
     services: [],
@@ -174,6 +196,31 @@ test('run_shortcut works for a restart-type shortcut (not just command-type)', a
     assert.deepEqual(toolText(ran), { ok: true })
     await waitUntil(() => engine.children.get('web').proc.pid !== firstPid)
     assert.notEqual(engine.children.get('web').proc.pid, firstPid)
+  })
+})
+
+test('run_shortcut works for a service+job shortcut, returning a tab that get_logs can read', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-job-shortcut-'))
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { greet: 'echo hi-from-job' } }))
+  const config = {
+    services: [{ name: 'web', cwd: dir, command: 'sh', args: ['-c', 'sleep 10'] }],
+    shortcuts: [{ key: 'j', label: 'run greet job', service: 'web', job: 'npm:greet' }],
+  }
+  await withMcpClient(config, async ({ client, engine }) => {
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.children.has('web'))
+
+    const ran = await client.callTool({ name: 'run_shortcut', arguments: { key: 'j' } })
+    const { ok, tab } = toolText(ran)
+    assert.equal(ok, true)
+    assert.match(tab, /^job:web:npm:greet:/)
+
+    await waitUntil(() => engine.getJobStatus(tab) === 'succeeded')
+    const logs = await client.callTool({ name: 'get_logs', arguments: { name: tab } })
+    assert.ok(toolText(logs).lines.includes('hi-from-job'))
+
+    const jobStatus = await client.callTool({ name: 'get_job_status', arguments: { tab } })
+    assert.deepEqual(toolText(jobStatus), { status: 'succeeded' })
   })
 })
 

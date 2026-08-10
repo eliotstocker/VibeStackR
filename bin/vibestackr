@@ -218,9 +218,38 @@ function main(argv) {
   // 'b'-ing out and reattaching, just triggered automatically the moment a
   // reload_config (see engine.reloadConfig()) actually adds/removes a
   // service, since lib/ui.js's tab bar is otherwise fixed at createUI() time.
-  async function runAttached() {
+  async function runAttached(reattaching) {
     let attach
     let ui
+    let firstBuild = true
+
+    // Counts down once the daemon becomes unreachable (quit/crash/hiccup) —
+    // reset on every fresh buildUI() (a rebuild replaces `attach`, so a stale
+    // timer referencing the old one would be pointless). If the daemon isn't
+    // back within DISCONNECT_TIMEOUT_S, this process gives up and exits —
+    // same as 'b'/detach, since the daemon it was attached to is already
+    // gone, there's nothing left here to tear down.
+    const DISCONNECT_TIMEOUT_S = 30
+    let disconnectTimer = null
+    function stopDisconnectCountdown() {
+      if (!disconnectTimer) return
+      clearInterval(disconnectTimer)
+      disconnectTimer = null
+    }
+    function startDisconnectCountdown() {
+      let secondsLeft = DISCONNECT_TIMEOUT_S
+      ui.showDisconnected(secondsLeft)
+      disconnectTimer = setInterval(() => {
+        secondsLeft -= 1
+        if (secondsLeft <= 0) {
+          stopDisconnectCountdown()
+          attach.detach()
+          process.exit(0)
+        } else {
+          ui.showDisconnected(secondsLeft)
+        }
+      }, 1000)
+    }
 
     async function buildUI() {
       // `config` (outer, `let`-bound, from loadConfig() at the top of
@@ -230,7 +259,12 @@ function main(argv) {
       // otherwise a service added by reload_config would still be missing
       // from lib/ui.js's rebuilt tab list too.
       ;({ config } = loadConfig(ROOT, configArg))
-      attach = createAttachClient({ config, root: ROOT, onServicesChanged: () => rebuild() })
+      stopDisconnectCountdown()
+      attach = createAttachClient({
+        config, root: ROOT, onServicesChanged: () => rebuild(),
+        onDisconnect: () => startDisconnectCountdown(),
+        onReconnect: () => { stopDisconnectCountdown(); ui.hideDisconnected() },
+      })
       await attach.init() // populate included() before createUI() builds its (fixed) tab list from it
       ui = createUI({
         config,
@@ -238,9 +272,18 @@ function main(argv) {
         onQuit: () => attach.quit().then(() => process.exit(0)),
         onDetach: () => { attach.detach(); process.exit(0) },
         onReloadConfig: () => attach.reloadConfig(),
+        version: VIBESTACKR_VERSION,
       })
       attach.setUI(ui) // must happen before the first pollOnce() below — otherwise that call's tail (since=0, i.e. the daemon's whole backlog) lands on attach-client's no-op UI stub and is consumed/discarded before ui.write() ever exists to render it
       await attach.pollOnce() // prime status/logs too, so the very first render isn't empty
+      // Only announced on this process's very first buildUI() (not on a
+      // reload_config-triggered rebuild() later) — distinguishes "found an
+      // already-running daemon" from "just started a brand-new one", which
+      // otherwise look identical once the TUI is up.
+      if (firstBuild) {
+        ui.write('run-local', reattaching ? '[vibestackr] reattached to already-running daemon' : '[vibestackr] started new daemon session')
+        firstBuild = false
+      }
       attach.startPolling()
     }
 
@@ -295,7 +338,7 @@ function main(argv) {
       if (excludeNames.size || onlyNames.size || args.persistLogs || args.serviceLog) {
         console.error('[vibestackr] note: --exclude/--only/--persist-logs/--service-log only take effect when starting a new daemon — one is already running for this project; attaching to it as-is.')
       }
-      return runAttached()
+      return runAttached(true)
     }
 
     // A brand-new daemon (mise install, checkDeps, first-run `npm install`
@@ -307,7 +350,7 @@ function main(argv) {
     // this cleanly once the real TUI is ready.
     console.log(`${LOGO_ANSI}\n[vibestackr] v${VIBESTACKR_VERSION} starting…\n`)
     await startNewDaemonOrExit()
-    return runAttached()
+    return runAttached(false)
   }
   run().catch((err) => { console.error(err); process.exit(1) })
 }

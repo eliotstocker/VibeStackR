@@ -209,11 +209,13 @@
         "key": { "type": "string", "description": "Single key that triggers this shortcut, e.g. 'r', 'g'." },
         "label": { "type": "string", "description": "Shown in the status bar legend and --help output." },
         "restart": { "type": "string", "description": "Name of a service to restart (or start, if not already running)." },
-        "command": { "type": "string", "description": "Shell command to run. Mutually exclusive with `restart`. Can reference `${name}` for each entry in `inputs[]`, substituted with the value collected for it." },
+        "service": { "type": "string", "description": "Service whose `job` (see below) this shortcut runs. Requires `job`; mutually exclusive with `restart`/`command`." },
+        "job": { "type": "string", "description": "A job `id` discovered for `service` (see the MCP `list_scripts` tool, e.g. 'npm:build') to run when this shortcut fires, instead of having to pick it from the runtime service→job picker each time. Requires `service`." },
+        "command": { "type": "string", "description": "Shell command to run. Mutually exclusive with `restart`/`service`+`job`. Can reference `${name}` for each entry in `inputs[]`, substituted with the value collected for it." },
         "cwd": { "type": "string", "description": "Working directory for `command`, relative to the project root." },
         "inputs": {
           "type": "array",
-          "description": "Makes this a `command`-type shortcut interactive: collects a value for each entry here before running `command` (TUI: a popover with one text box per input; MCP's run_shortcut tool gains a matching `inputs` parameter) and substitutes `${name}` in `command` with what was collected. Ignored for `restart`-type shortcuts.",
+          "description": "Makes this a `command`-type shortcut interactive: collects a value for each entry here before running `command` (TUI: a popover with one text box per input; MCP's run_shortcut tool gains a matching `inputs` parameter) and substitutes `${name}` in `command` with what was collected. Ignored for `restart`/`service`+`job`-type shortcuts.",
           "items": {
             "type": "object",
             "required": ["name"],
