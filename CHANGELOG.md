@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/eliotstocker/VibeStackR/compare/v1.5.0...v1.5.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* boot failure with no error ([9687ad7](https://github.com/eliotstocker/VibeStackR/commit/9687ad7c4aae45af3294005e9bf04d993d4cec16))
+
 # [1.5.0](https://github.com/eliotstocker/VibeStackR/compare/v1.4.0...v1.5.0) (2026-08-06)
 
 
