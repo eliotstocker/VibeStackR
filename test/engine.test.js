@@ -661,3 +661,38 @@ test('runShortcut: an interactive shortcut runs its command with ${name} substit
     assert.equal(fs.readFileSync(marker, 'utf8').trim(), 'hello from a shortcut')
   })
 })
+
+test('--only and --exclude resolve sub-stack group names', () => {
+  const config = {
+    services: [
+      { name: 'auth/db', group: 'auth', command: 'true' },
+      { name: 'auth/api', group: 'auth', command: 'true' },
+      { name: 'web', command: 'true' },
+    ],
+  }
+
+  const engineOnly = createEngine({ config, args: { ...baseArgs(), only: new Set(['auth']) } })
+  assert.equal(engineOnly.included('auth/db'), true)
+  assert.equal(engineOnly.included('auth/api'), true)
+  assert.equal(engineOnly.included('web'), false)
+
+  const engineExclude = createEngine({ config, args: { ...baseArgs(), exclude: new Set(['auth']) } })
+  assert.equal(engineExclude.included('auth/db'), false)
+  assert.equal(engineExclude.included('auth/api'), false)
+  assert.equal(engineExclude.included('web'), true)
+})
+
+test('startAll resolves group names in dependsOn', async () => {
+  const config = {
+    services: [
+      { name: 'auth/db', group: 'auth', command: 'node', args: ['-e', 'setTimeout(() => process.exit(0), 50)'], oneShot: true },
+      { name: 'web', command: 'node', args: ['-e', 'process.exit(0)'], oneShot: true, dependsOn: ['auth'] },
+    ],
+  }
+  await withEngine(config, {}, async (engine) => {
+    await engine.startAll()
+    assert.equal(engine.status.get('auth/db'), 'ready')
+    assert.equal(engine.status.get('web'), 'ready')
+  })
+})
+

@@ -220,3 +220,121 @@ test('loadConfig with explicit path that is a directory throws a clear error', (
     assert.throws(() => loadConfig(dir, 'config-dir'), /config path is not a file/)
   })
 })
+
+test('loads sub-stack config, namespaces services, resolves cwds and rewrites internal dependsOn', () => {
+  withTmpDir((dir) => {
+    const subDir = path.join(dir, 'sub')
+    fs.mkdirSync(subDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(subDir, '.vibestackr.yaml'),
+      `services:
+  - name: db
+    command: "echo db"
+  - name: api
+    command: "echo api"
+    cwd: "./server"
+    envFile: ".env"
+    dependsOn:
+      - db
+`
+    )
+    fs.writeFileSync(
+      path.join(dir, '.vibestackr.yaml'),
+      `services:
+  - name: auth
+    config: ./sub
+  - name: frontend
+    command: "echo frontend"
+    dependsOn:
+      - auth/api
+`
+    )
+
+    const { config } = loadConfig(dir)
+    assert.equal(config.services.length, 3)
+
+    const db = config.services.find((s) => s.name === 'auth/db')
+    assert.ok(db)
+    assert.equal(db.group, 'auth')
+    assert.equal(db.cwd, 'sub')
+
+    const api = config.services.find((s) => s.name === 'auth/api')
+    assert.ok(api)
+    assert.equal(api.group, 'auth')
+    assert.equal(api.cwd, path.normalize('sub/server'))
+    assert.equal(api.envFile, path.normalize('sub/.env'))
+    assert.deepEqual(api.dependsOn, ['auth/db'])
+
+    const fe = config.services.find((s) => s.name === 'frontend')
+    assert.ok(fe)
+    assert.deepEqual(fe.dependsOn, ['auth/api'])
+  })
+})
+
+test('sub-stack inherits dependencies, warnings, and shortcuts', () => {
+  withTmpDir((dir) => {
+    const subDir = path.join(dir, 'auth-pkg')
+    fs.mkdirSync(subDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(subDir, '.vibestackr.json'),
+      JSON.stringify({
+        services: [{ name: 'server', command: 'true' }],
+        dependencies: [{ message: 'need redis', when: [{ commandMissing: 'redis-cli' }] }],
+        warnings: [{ service: 'server', message: 'check config' }],
+        shortcuts: [{ key: 'a', label: 'restart auth', restart: 'server' }],
+      })
+    )
+    fs.writeFileSync(
+      path.join(dir, '.vibestackr.json'),
+      JSON.stringify({
+        services: [{ name: 'auth', config: './auth-pkg' }],
+      })
+    )
+
+    const { config } = loadConfig(dir)
+    assert.equal(config.services[0].name, 'auth/server')
+    assert.equal(config.dependencies[0].message, '[auth] need redis')
+    assert.equal(config.warnings[0].service, 'auth/server')
+    assert.equal(config.shortcuts[0].restart, 'auth/server')
+  })
+})
+
+test('sub-stack respects exclude and only filters on sub-stack declaration', () => {
+  withTmpDir((dir) => {
+    const subDir = path.join(dir, 'services')
+    fs.mkdirSync(subDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(subDir, '.vibestackr.yaml'),
+      `services:
+  - name: s1
+    command: "true"
+  - name: s2
+    command: "true"
+`
+    )
+    fs.writeFileSync(
+      path.join(dir, '.vibestackr.yaml'),
+      `services:
+  - name: stack1
+    config: ./services
+    only:
+      - s1
+`
+    )
+
+    const { config } = loadConfig(dir)
+    assert.equal(config.services.length, 1)
+    assert.equal(config.services[0].name, 'stack1/s1')
+  })
+})
+
+test('detects circular sub-stack imports', () => {
+  withTmpDir((dir) => {
+    const a = path.join(dir, 'a.yaml')
+    const b = path.join(dir, 'b.yaml')
+    fs.writeFileSync(a, `services:\n  - name: b\n    config: ${b}\n`)
+    fs.writeFileSync(b, `services:\n  - name: a\n    config: ${a}\n`)
+    assert.throws(() => loadConfig(dir, 'a.yaml'), /circular sub-stack import detected/)
+  })
+})
+

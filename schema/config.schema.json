@@ -49,10 +49,20 @@
   "definitions": {
     "service": {
       "type": "object",
-      "required": ["name", "command"],
+      "required": ["name"],
+      "oneOf": [
+        { "required": ["command"] },
+        { "required": ["config"] },
+        { "required": ["stack"] }
+      ],
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "description": "Unique identifier — used as the tab name, in --exclude/--only, and in dependsOn/restart references." },
+        "config": { "type": "string", "description": "Path to a sub-stack .vibestackr.yaml (or project directory containing one) to import services, dependencies, warnings, and shortcuts from." },
+        "stack": { "type": "string", "description": "Alias for `config` — path to a sub-stack config file or directory." },
+        "group": { "type": "string", "description": "Tab group label for this service (auto-populated when imported from a sub-stack)." },
+        "exclude": { "type": "array", "items": { "type": "string" }, "description": "For sub-stack services: service names to exclude from the imported sub-stack." },
+        "only": { "type": "array", "items": { "type": "string" }, "description": "For sub-stack services: only import these service names from the sub-stack." },
         "type": {
           "type": "string",
           "description": "Free-form label. 'node' additionally triggers an automatic `npm install` on first run (or if the lockfile changed) if cwd/node_modules is missing. 'go' runs `go mod download`, 'rust' runs `cargo fetch`, and 'python' runs `uv sync`/`poetry install`/`pipenv install`/`pip install -r requirements.txt` (whichever manifest is present) under the same first-run/manifest-changed conditions."
