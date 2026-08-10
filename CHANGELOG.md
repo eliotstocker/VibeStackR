@@ -1,3 +1,10 @@
+## [1.5.3](https://github.com/eliotstocker/VibeStackR/compare/v1.5.2...v1.5.3) (2026-08-10)
+
+
+### Bug Fixes
+
+* panel ops ([7d72e9e](https://github.com/eliotstocker/VibeStackR/commit/7d72e9e64efa86032cb2aef4814b51b0a2878b17))
+
 ## [1.5.2](https://github.com/eliotstocker/VibeStackR/compare/v1.5.1...v1.5.2) (2026-08-10)
 
 
