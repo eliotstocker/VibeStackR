@@ -290,6 +290,68 @@ test('restartService replaces the running process', async () => {
   })
 })
 
+test('spawnService: a missing command (ENOENT) fails just that service, with a clear reason, instead of crashing the daemon', async () => {
+  const config = { services: [{ name: 'web', command: './does-not-exist-xyz.sh', args: [] }] }
+  await withEngine(config, {}, async (engine) => {
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.status.get('web') === 'failed')
+    assert.equal(engine.status.get('web'), 'failed')
+    assert.ok(
+      engine.getLogs('run-local').some((l) => l.includes('web') && l.includes('failed to start') && l.includes('ENOENT')),
+      `expected a clear ENOENT failure message, got: ${JSON.stringify(engine.getLogs('run-local'))}`,
+    )
+  })
+})
+
+test('spawnService: a failing install step (e.g. missing install tool) fails just that service, not the daemon', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-install-fail-'))
+  fs.writeFileSync(path.join(dir, 'package.json'), '{}')
+  const config = { services: [{ name: 'api', type: 'node', cwd: dir, command: 'sh', args: ['-c', 'sleep 30'] }] }
+  await withEngine(config, {}, async (engine) => {
+    // Force npm install itself to fail with a clear, distinct error rather
+    // than relying on npm being absent from the test machine's PATH.
+    const origPath = process.env.PATH
+    process.env.PATH = ''
+    try {
+      engine.spawnService(config.services[0])
+      await waitUntil(() => engine.status.get('api') === 'failed')
+    } finally {
+      process.env.PATH = origPath
+    }
+    assert.equal(engine.status.get('api'), 'failed')
+    assert.ok(!engine.children.has('api')) // never got as far as spawning the actual service command
+    assert.ok(
+      engine.getLogs('run-local').some((l) => l.includes('api') && l.includes('install step failed')),
+      `expected a clear install-step failure message, got: ${JSON.stringify(engine.getLogs('run-local'))}`,
+    )
+  })
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('runJob: a missing job command (ENOENT) reports "failed:" with a clear reason, not a crash', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-job-enoent-'))
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { greet: 'echo hi' } }))
+  const config = { services: [{ name: 'web', cwd: dir, command: 'sh', args: ['-c', 'sleep 30'] }] }
+  await withEngine(config, {}, async (engine) => {
+    // npm:greet resolves to `npm run greet` — make `npm` itself unresolvable.
+    const origPath = process.env.PATH
+    process.env.PATH = ''
+    let tab
+    try {
+      tab = engine.runJob('web', 'npm:greet')
+      await waitUntil(() => (engine.getJobStatus(tab) || '').startsWith('failed:'))
+    } finally {
+      process.env.PATH = origPath
+    }
+    assert.match(engine.getJobStatus(tab), /^failed:/)
+    assert.ok(
+      engine.getLogs(tab).some((l) => l.includes('failed to start') && l.includes('ENOENT')),
+      `expected a clear ENOENT failure message, got: ${JSON.stringify(engine.getLogs(tab))}`,
+    )
+  })
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
 test('runJob: succeeding job streams output into its own tab and reports "succeeded"', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-job-test-'))
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { greet: 'echo hello-from-job' } }))
