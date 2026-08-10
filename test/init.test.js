@@ -201,6 +201,40 @@ test('vibestackr init --agents updates AGENTS.md when config exists and exits cl
   }
 })
 
+test('vibestackr init --help prints usage (mentioning --agent/--mcp/--agents) and exits 0 without prompting', async () => {
+  const origExit = process.exit
+  let exitCode = null
+  process.exit = (code) => { exitCode = code; throw new Error('EXIT_TEST') }
+  try {
+    await assert.rejects(async () => {
+      await main(['--help'])
+    }, /EXIT_TEST/)
+  } finally {
+    process.exit = origExit
+  }
+  assert.equal(exitCode, 0)
+})
+
+test('vibestackr config --help prints usage and exits 0 without touching any config', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-config-help-test-'))
+  const origCwd = process.cwd()
+  const origExit = process.exit
+  let exitCode = null
+  process.chdir(dir)
+  process.exit = (code) => { exitCode = code; throw new Error('EXIT_TEST') }
+  try {
+    await assert.rejects(async () => {
+      await configMain(['--help'])
+    }, /EXIT_TEST/)
+    assert.equal(exitCode, 0)
+    assert.deepEqual(fs.readdirSync(dir), []) // no config read/written — --help short-circuits before any of that
+  } finally {
+    process.chdir(origCwd)
+    process.exit = origExit
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('vibestackr init --agents exits 1 when no stack config exists', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-agents-test-'))
   const origCwd = process.cwd()

@@ -424,6 +424,38 @@ test('runShortcut: restart-type shortcut starts the named service', async () => 
   })
 })
 
+test('runShortcut: restart-type shortcut with an array restarts every named service', async () => {
+  const config = {
+    services: [
+      { name: 'web', command: 'sh', args: ['-c', 'sleep 30'] },
+      { name: 'worker', command: 'sh', args: ['-c', 'sleep 30'] },
+    ],
+  }
+  await withEngine(config, {}, async (engine) => {
+    await engine.runShortcut({ key: 'r', label: 'restart both', restart: ['web', 'worker'] })
+    await waitUntil(() => engine.children.has('web') && engine.children.has('worker'))
+    assert.ok(engine.children.has('web'))
+    assert.ok(engine.children.has('worker'))
+  })
+})
+
+test('runShortcut: jobs[]-type shortcut runs every job, one tab each', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-multi-job-test-'))
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { a: 'echo job-a', b: 'echo job-b' } }))
+  const config = { services: [{ name: 'web', cwd: dir, command: 'sh', args: ['-c', 'sleep 30'] }] }
+  await withEngine(config, {}, async (engine) => {
+    const result = await engine.runShortcut({
+      key: 'j', label: 'run a and b',
+      jobs: [{ service: 'web', job: 'npm:a' }, { service: 'web', job: 'npm:b' }],
+    })
+    assert.equal(result.tabs.length, 2)
+    await waitUntil(() => result.tabs.every((t) => engine.getJobStatus(t) === 'succeeded'))
+    assert.ok(engine.getLogs(result.tabs[0]).some((l) => l.includes('job-a')))
+    assert.ok(engine.getLogs(result.tabs[1]).some((l) => l.includes('job-b')))
+  })
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
 test('runShortcut: command-type shortcut runs a shell command synchronously', async () => {
   const config = { services: [] }
   await withEngine(config, {}, async (engine) => {

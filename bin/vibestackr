@@ -62,7 +62,15 @@ try {
 // `stop`/`reload`/`mcp`) works the same from any subdirectory of the project.
 const ROOT = configArg ? process.cwd() : findProjectRoot(process.cwd())
 
+function wantsHelp(argv) {
+  return argv.includes('--help') || argv.includes('-h')
+}
+
 async function stopCommand() {
+  if (wantsHelp(process.argv.slice(3))) {
+    console.log(commandLineUsage([{ header: 'vibestackr stop', content: 'Stops the daemon and every service it manages for this project. Takes no options.' }]))
+    process.exit(0)
+  }
   try {
     await stopDaemon(ROOT)
   } catch (err) {
@@ -73,6 +81,10 @@ async function stopCommand() {
 }
 
 async function reloadCommand() {
+  if (wantsHelp(process.argv.slice(3))) {
+    console.log(commandLineUsage([{ header: 'vibestackr reload', content: 'Re-reads .vibestackr.json/.vibestackr.yaml from disk and applies it to the already-running daemon, without restarting it. Takes no options.' }]))
+    process.exit(0)
+  }
   try {
     await requestSocket(ROOT, 'reload_config', {})
   } catch (err) {
@@ -132,11 +144,27 @@ function main(argv) {
       { header: 'vibestackr', content: 'Starts (or attaches a TUI to) a local dev stack from .vibestackr.json/.vibestackr/.vibestackr.yaml/.vibestackr.yml (or --config).' },
       { header: 'Options', optionList: OPTIONS_FOR_HELP },
       {
+        header: 'Subcommands',
+        content: [
+          '{bold stop}     stop the daemon and every service it manages',
+          '{bold reload}   re-apply an edited config to the running daemon',
+          '{bold mcp}      expose the running stack over MCP (stdio)',
+          '{bold init}     agent-generate a .vibestackr.yaml for this repo',
+          '{bold config}   agent-apply a described change to the existing config',
+          "Each takes --help/-h for its own options, e.g. 'vibestackr init --help'.",
+        ],
+      },
+      {
         header: 'Shortcuts (while running)',
         content: [
           '{bold q} / Ctrl+C  stop everything (the daemon and every service it manages)',
           "{bold b}  background — close this view only, the daemon keeps running (re-run vibestackr to reattach)",
           '{bold Tab} / \u2190\u2192 / 1-9  switch tabs',
+          '{bold \u2191\u2193} / PageUp/PageDown / Home/End  scroll the active tab\'s log',
+          '{bold Shift+S}  restart a service (picker)',
+          '{bold Shift+J}  run a discovered job/script for a service (picker) \u2014 output opens in a split pane; Esc/its close button dismisses the pane without stopping the job',
+          '{bold Shift+R}  reload config from disk into the running daemon',
+          '{bold Shift+O}  expand/collapse the status bar\'s shortcut legend',
           ...(config.shortcuts || []).map((s) => `{bold ${s.key}}  ${s.label}`),
         ],
       },
@@ -357,6 +385,10 @@ function main(argv) {
 
 const sub = process.argv[2]
 if (sub === 'mcp') {
+  if (process.argv.slice(3).some((a) => a === '--help' || a === '-h')) {
+    console.log(commandLineUsage([{ header: 'vibestackr mcp', content: "Speaks MCP over stdio, exposing this project's running vibestackr daemon (get_status, get_logs, restart_service, list_scripts/run_script, etc.) to an MCP client. Requires a daemon already running for this project (`npx vibestackr --background`). Takes no options — configure it in your MCP client as the command `npx vibestackr mcp`." }]))
+    process.exit(0)
+  }
   require('../lib/mcp-server').main()
 } else if (sub === 'init') {
   require('../lib/init').main(process.argv.slice(3)).catch((err) => { console.error(err); process.exit(1) })
