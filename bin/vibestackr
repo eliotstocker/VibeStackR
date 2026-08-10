@@ -312,6 +312,14 @@ function main(argv) {
         ui.write('run-local', reattaching ? '[vibestackr] reattached to already-running daemon' : '[vibestackr] started new daemon session')
         firstBuild = false
       }
+      // Only ever a mismatch when reattaching to a daemon started by an
+      // older/newer install of this package (e.g. upgraded via npm while the
+      // daemon was left running) — a freshly-started one is always this same
+      // process's own version.
+      const daemonVersion = attach.getDaemonVersion()
+      if (daemonVersion && daemonVersion !== VIBESTACKR_VERSION) {
+        ui.write('run-local', `[vibestackr] WARNING: this TUI is v${VIBESTACKR_VERSION} but the running daemon is v${daemonVersion} — mismatched versions can behave unpredictably; \`npx vibestackr stop\` then reattach to pick up the new version`)
+      }
       attach.startPolling()
     }
 
