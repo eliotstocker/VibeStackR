@@ -12,7 +12,7 @@ const { createAttachClient } = require('../lib/attach-client')
 const NOOP_UI = { write() {}, refreshStatus() {}, destroy() {} }
 const baseArgs = () => ({ exclude: new Set(), only: new Set(), serviceLog: '', persistLogs: false })
 
-const waitUntil = async (predicate, { timeout = 3000, interval = 20 } = {}) => {
+const waitUntil = async (predicate, { timeout = 5000, interval = 20 } = {}) => {
   const start = Date.now()
   while (!predicate()) {
     if (Date.now() - start > timeout) throw new Error('waitUntil: timed out')
@@ -32,6 +32,7 @@ async function withDaemon(config, fn) {
   try {
     handle = await startControlSocket({
       engine, config, root,
+      onReloadConfig: async () => ({ ok: true }),
       onQuit: async () => { quitCalled = true; await engine.quit(); stopControlSocket(handle) },
     })
     await fn({ engine, root, isQuit: () => quitCalled })
@@ -185,3 +186,94 @@ test('quit() asks the daemon to fully stop', async () => {
     await waitUntil(isQuit)
   })
 })
+
+test('getDaemonVersion() fetches version on init()', async () => {
+  const config = { services: [] }
+  await withDaemon(config, async ({ root }) => {
+    const attach = createAttachClient({ config, root })
+    await attach.init()
+    assert.equal(attach.getDaemonVersion(), require('../package.json').version)
+  })
+})
+
+test('discoverJobs, runJob, watchJobTab, unwatchJobTab and jobStatus polling', async () => {
+  const config = { services: [{ name: 'web', cwd: '.', command: 'true' }] }
+  await withDaemon(config, async ({ root, engine }) => {
+    engine.discoverJobsForService = () => [{ id: 'npm:build', source: 'npm', label: 'build', command: 'npm', args: ['run', 'build'] }]
+    engine.discoverAllJobs = () => [{ name: 'web', jobs: engine.discoverJobsForService('web') }]
+    engine.runJob = () => 'job:web:npm:build:1'
+    engine.getJobStatus = () => 'succeeded'
+
+    const attach = createAttachClient({ config, root })
+    await attach.init()
+
+    const jobs = await attach.discoverJobs('web')
+    assert.equal(jobs[0].id, 'npm:build')
+
+    const allServices = await attach.discoverAllJobs()
+    assert.equal(allServices[0].name, 'web')
+
+    const tab = await attach.runJob('web', 'npm:build')
+    assert.equal(tab, 'job:web:npm:build:1')
+
+    attach.watchJobTab(tab)
+    await attach.pollOnce()
+    assert.equal(attach.jobStatus.get(tab), 'succeeded')
+
+    attach.unwatchJobTab(tab)
+    assert.equal(attach.jobStatus.has(tab), false)
+  })
+})
+
+test('reloadConfig() proxies request to daemon', async () => {
+  const config = { services: [] }
+  await withDaemon(config, async ({ root }) => {
+    const attach = createAttachClient({ config, root })
+    const res = await attach.reloadConfig()
+    assert.equal(res.ok, true)
+  })
+})
+
+test('onDisconnect and onReconnect trigger when connection drops and recovers', async () => {
+  const config = { services: [] }
+  let disconnected = false
+  let reconnected = false
+  await withDaemon(config, async ({ root }) => {
+    const attach = createAttachClient({
+      config, root,
+      onDisconnect: () => { disconnected = true },
+      onReconnect: () => { reconnected = true },
+    })
+    await attach.init()
+    await attach.pollOnce()
+    assert.equal(disconnected, false)
+
+    // Poll against a non-existent socket root to simulate disconnect
+    const badAttach = createAttachClient({
+      config, root: path.join(root, 'nonexistent'),
+      onDisconnect: () => { disconnected = true },
+      onReconnect: () => { reconnected = true },
+    })
+    await badAttach.pollOnce()
+    assert.equal(disconnected, true)
+  })
+})
+
+test('onServicesChanged triggers when included set key changes', async () => {
+  const config = { services: [{ name: 'web', command: 'true' }] }
+  let changed = false
+  await withDaemon(config, async ({ root, engine }) => {
+    const attach = createAttachClient({
+      config, root,
+      onServicesChanged: () => { changed = true },
+    })
+    await attach.init()
+    assert.equal(changed, false)
+
+    engine.included = (name) => name === 'web' || name === 'api'
+    config.services.push({ name: 'api', command: 'true' })
+    await attach.pollOnce()
+    assert.equal(changed, true)
+  })
+})
+

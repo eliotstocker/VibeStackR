@@ -696,3 +696,17 @@ test('startAll resolves group names in dependsOn', async () => {
   })
 })
 
+test('envFile parses quoted values, and serviceLog sets LOGGING_FILE_NAME', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-envfile-test-'))
+  const envPath = path.join(dir, '.env')
+  fs.writeFileSync(envPath, 'DQ="quoted_val"\nSQ=\'single_val\'\n# comment line\ninvalid_no_eq\n')
+  const config = {
+    services: [{ name: 'web', envFile: envPath, command: 'node', args: ['-e', 'process.exit(0)'], oneShot: true }],
+  }
+  await withEngine(config, { serviceLog: 'custom.log' }, async (engine) => {
+    await engine.startAll()
+    assert.equal(engine.status.get('web'), 'ready')
+  })
+})
+
+

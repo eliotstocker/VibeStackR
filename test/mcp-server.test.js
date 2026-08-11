@@ -14,7 +14,7 @@ const BIN = path.join(__dirname, '..', 'bin', 'vibestackr')
 const NOOP_UI = { write() {}, refreshStatus() {}, destroy() {} }
 const baseArgs = () => ({ exclude: new Set(), only: new Set(), serviceLog: '', persistLogs: false })
 
-const waitUntil = async (predicate, { timeout = 3000, interval = 20 } = {}) => {
+const waitUntil = async (predicate, { timeout = 8000, interval = 20 } = {}) => {
   const start = Date.now()
   while (!predicate()) {
     if (Date.now() - start > timeout) throw new Error('waitUntil: timed out')

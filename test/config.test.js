@@ -338,3 +338,70 @@ test('detects circular sub-stack imports', () => {
   })
 })
 
+test('sub-stack respects exclude, env, and dependsOn on declaration', () => {
+  withTmpDir((dir) => {
+    const subDir = path.join(dir, 'services')
+    fs.mkdirSync(subDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(subDir, '.vibestackr.yaml'),
+      `services:
+  - name: s1
+    command: "true"
+  - name: s2
+    command: "true"
+`
+    )
+    fs.writeFileSync(
+      path.join(dir, '.vibestackr.yaml'),
+      `services:
+  - name: stack1
+    config: ./services
+    exclude:
+      - s2
+    env:
+      SHARED: "true"
+    dependsOn:
+      - global-db
+  - name: global-db
+    command: "true"
+`
+    )
+
+    const { config } = loadConfig(dir)
+    const s1 = config.services.find((s) => s.name === 'stack1/s1')
+    assert.ok(s1)
+    assert.equal(config.services.some((s) => s.name === 'stack1/s2'), false)
+    assert.equal(s1.env.SHARED, 'true')
+    assert.deepEqual(s1.dependsOn, ['global-db'])
+  })
+})
+
+test('throws clear error when sub-stack config file does not exist', () => {
+  withTmpDir((dir) => {
+    fs.writeFileSync(
+      path.join(dir, '.vibestackr.yaml'),
+      `services:\n  - name: missing\n    config: ./nonexistent-path\n`
+    )
+    assert.throws(() => loadConfig(dir), /sub-stack config not found/)
+  })
+})
+
+test('nested sub-stack with already namespaced service name', () => {
+  withTmpDir((dir) => {
+    const subDir = path.join(dir, 'sub')
+    fs.mkdirSync(subDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(subDir, '.vibestackr.yaml'),
+      `services:\n  - name: sub/db\n    command: "true"\n  - name: sub/api\n    command: "true"\n    dependsOn:\n      - sub/db\n`
+    )
+    fs.writeFileSync(
+      path.join(dir, '.vibestackr.yaml'),
+      `services:\n  - name: main\n    config: ./sub\n`
+    )
+    const { config } = loadConfig(dir)
+    assert.equal(config.services[1].name, 'sub/api')
+    assert.deepEqual(config.services[1].dependsOn, ['sub/db'])
+  })
+})
+
+

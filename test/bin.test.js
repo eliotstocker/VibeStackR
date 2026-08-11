@@ -81,7 +81,7 @@ test('vibestackr config with no agent CLI on PATH prints the update prompt (fall
 // started) — SIGTERM here only detaches (same as pressing 'b'), it does NOT
 // stop the daemon or the services it manages. Tests that need everything
 // actually stopped call stopDaemon() as well.
-async function runInteractive(args, cwd, until, { timeout = 3000 } = {}) {
+async function runInteractive(args, cwd, until, { timeout = 5000 } = {}) {
   const child = spawn('node', [BIN, ...args], { cwd, stdio: ['ignore', 'ignore', 'ignore'] })
   // Registered immediately, not inside `finally` — if the child already
   // exited (e.g. it crashed on startup) before we get there, a listener

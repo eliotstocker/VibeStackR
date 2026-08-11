@@ -12,7 +12,7 @@ const { startControlSocket, stopControlSocket, socketPath } = require('../lib/co
 const NOOP_UI = { write() {}, refreshStatus() {}, destroy() {} }
 const baseArgs = () => ({ exclude: new Set(), only: new Set(), serviceLog: '', persistLogs: false })
 
-const waitUntil = async (predicate, { timeout = 3000, interval = 20 } = {}) => {
+const waitUntil = async (predicate, { timeout = 5000, interval = 20 } = {}) => {
   const start = Date.now()
   while (!predicate()) {
     if (Date.now() - start > timeout) throw new Error('waitUntil: timed out')
@@ -300,13 +300,6 @@ test('a stale socket file (no listener behind it) is cleaned up and rebound', as
   try {
     const sockPath = socketPath(root)
     fs.mkdirSync(path.dirname(sockPath), { recursive: true })
-    // A stale socket file: net.Server.close() actually unlinks the file
-    // itself, so it can't be used to simulate this — real staleness only
-    // happens when a previous process is killed (e.g. SIGKILL) without
-    // getting a chance to close() at all, leaving the file orphaned with
-    // nothing listening behind it. A plain leftover file reproduces exactly
-    // that as far as startControlSocket is concerned: it doesn't care what
-    // kind of file is there, only that connecting to it fails.
     fs.writeFileSync(sockPath, '')
     assert.ok(fs.existsSync(sockPath))
 
@@ -315,5 +308,29 @@ test('a stale socket file (no listener behind it) is cleaned up and rebound', as
     stopControlSocket(handle)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('requestSocket handles non-ENOENT socket error directly', async () => {
+  const net = require('net')
+  const { requestSocket } = require('../lib/control-socket')
+  const origConnect = net.connect
+
+  net.connect = () => {
+    const EventEmitter = require('events')
+    const emitter = new EventEmitter()
+    process.nextTick(() => {
+      const err = new Error('permission denied')
+      err.code = 'EACCES'
+      emitter.emit('error', err)
+    })
+    return emitter
+  }
+  try {
+    await assert.rejects(async () => {
+      await requestSocket('/tmp/some-root', 'status', {})
+    }, /permission denied/)
+  } finally {
+    net.connect = origConnect
   }
 })

@@ -254,5 +254,71 @@ test('vibestackr init --agents exits 1 when no stack config exists', async () =>
   }
 })
 
+test('buildUpdatePrompt builds update prompt embedding description and root', () => {
+  const { buildUpdatePrompt } = require('../lib/init')
+  const prompt = buildUpdatePrompt('/my/root', 'add redis')
+  assert.match(prompt, /add redis/)
+  assert.match(prompt, /\/my\/root/)
+})
+
+test('buildSchemaFixPrompt embeds error message and file path', () => {
+  const { buildSchemaFixPrompt } = require('../lib/init')
+  const prompt = buildSchemaFixPrompt('/my/root', '/my/root/.vibestackr.yaml', 'services is required')
+  assert.match(prompt, /services is required/)
+  assert.match(prompt, /\.vibestackr\.yaml/)
+})
+
+test('validateWrittenConfig returns null when valid, or error string when invalid/missing', () => {
+  const { validateWrittenConfig } = require('../lib/init')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-val-test-'))
+  try {
+    assert.notEqual(validateWrittenConfig(dir), null)
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify({ services: [] }))
+    assert.equal(validateWrittenConfig(dir), null)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('findCli looks up known CLI by name', () => {
+  const { findCli } = require('../lib/init')
+  assert.equal(findCli('claude').name, 'claude')
+  assert.equal(findCli('nonexistent'), null)
+})
+
+test('main with invalid --agent exits 1 with unknown --agent error', async () => {
+  const readline = require('readline')
+  const origCreateInterface = readline.createInterface
+  readline.createInterface = () => ({
+    question: (q, cb) => cb(''),
+    close: () => {},
+  })
+  const { main } = require('../lib/init')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibestackr-invalid-agent-test-'))
+  const origCwd = process.cwd()
+  const origExit = process.exit
+  const origError = console.error
+  let exitCode = null
+  let errLogs = []
+  process.chdir(dir)
+  process.exit = (code) => { exitCode = code; throw new Error('EXIT') }
+  console.error = (msg) => { errLogs.push(msg) }
+  try {
+    try {
+      await main(['--agent', 'bogus'])
+    } catch {}
+    assert.equal(exitCode, 1)
+    assert.ok(errLogs.some((m) => String(m).includes("unknown --agent 'bogus'")))
+  } finally {
+    readline.createInterface = origCreateInterface
+    process.chdir(origCwd)
+    process.exit = origExit
+    console.error = origError
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+
+
 
 
