@@ -24,6 +24,7 @@
   ],
   "scripts": {
     "test": "node --test",
+    "test:docker": "node --test test/docker-bootstrap.test.js",
     "build:site": "node site/build.js",
     "release": "semantic-release"
   },

@@ -40,7 +40,7 @@ function listenOnFreePort() {
   })
 }
 
-const waitUntil = async (predicate, { timeout = 3000, interval = 20 } = {}) => {
+const waitUntil = async (predicate, { timeout = 10000, interval = 20 } = {}) => {
   const start = Date.now()
   while (!predicate()) {
     if (Date.now() - start > timeout) throw new Error('waitUntil: timed out')

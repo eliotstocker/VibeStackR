@@ -1,0 +1,28 @@
+FROM node:20-bookworm-slim
+
+# Install system dependencies required by mise and toolchains
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    ca-certificates \
+    tar \
+    xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install mise
+RUN curl https://mise.run | sh
+ENV PATH="/root/.local/bin:${PATH}"
+
+# Set working directory
+WORKDIR /app
+
+# Copy application files
+COPY package*.json ./
+COPY schema/ ./schema/
+COPY lib/ ./lib/
+COPY bin/ ./bin/
+
+RUN npm install --production
+
+ENV NODE_ENV=production
+CMD ["node", "bin/vibestackr", "--background"]
