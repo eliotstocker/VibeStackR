@@ -12,8 +12,12 @@ const IMAGE_NAME = 'vibestackr-bootstrap-test'
 const CONTAINER_NAME = `vibestackr-boot-test-${Date.now()}`
 
 function isDockerAvailable() {
-  const res = spawnSync('docker', ['info'], { encoding: 'utf8' })
-  return res.status === 0
+  try {
+    const res = spawnSync('docker', ['info'], { encoding: 'utf8', timeout: 2000 })
+    return res.status === 0
+  } catch {
+    return false
+  }
 }
 
 const waitUntil = async (predicate, { timeout = 60000, interval = 1000 } = {}) => {

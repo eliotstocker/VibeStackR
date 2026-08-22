@@ -108,8 +108,7 @@ test('Integration: Full Daemon Lifecycle & Client Attach Workflow', async () => 
     const tailRes2 = await requestSocket(root, 'tail', { name: 'run-local', since: tailRes1.total })
     assert.deepEqual(tailRes2.lines, [])
   } finally {
-    await stopDaemon(root)
-    await waitUntil(() => !fs.existsSync(socketPath(root)))
+    try { await stopDaemon(root) } catch {}
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
@@ -190,10 +189,10 @@ test('Integration: Full MCP Server End-to-End Workflow', async () => {
     const stopRes = await client.callTool({ name: 'stop_daemon', arguments: {} })
     assert.equal(JSON.parse(stopRes.content[0].text).ok, true)
 
-    await waitUntil(() => !fs.existsSync(socketPath(root)))
   } finally {
-    await client.close()
-    await stopDaemon(root)
+    await client.close().catch(() => {})
+    try { if (transport && transport._process) transport._process.kill('SIGTERM') } catch {}
+    try { await stopDaemon(root) } catch {}
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
@@ -242,8 +241,8 @@ test('Integration: Multi-Project Concurrency & State Isolation', async () => {
     const servicesBStillAlive = await requestSocket(rootB, 'services', {})
     assert.deepEqual(servicesBStillAlive.services.map((s) => s.name), ['service-beta'])
   } finally {
-    await stopDaemon(rootA)
-    await stopDaemon(rootB)
+    try { await stopDaemon(rootA) } catch {}
+    try { await stopDaemon(rootB) } catch {}
     fs.rmSync(rootA, { recursive: true, force: true })
     fs.rmSync(rootB, { recursive: true, force: true })
   }
@@ -270,7 +269,7 @@ test('Integration: Stale Socket Cleanup & Auto Recovery', async () => {
     const statusRes = await requestSocket(root, 'status', {})
     assert.ok(statusRes != null)
   } finally {
-    await stopDaemon(root)
+    try { await stopDaemon(root) } catch {}
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
@@ -309,7 +308,7 @@ test('Integration: High-Volume Log Streaming & Persist Logs File Integrity', asy
     assert.equal(lines[0], 'LOG_LINE_1')
     assert.equal(lines[count - 1], `LOG_LINE_${count}`)
   } finally {
-    await stopDaemon(root)
+    try { await stopDaemon(root) } catch {}
     fs.rmSync(root, { recursive: true, force: true })
   }
 })

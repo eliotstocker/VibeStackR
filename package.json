@@ -23,9 +23,9 @@
     "schema"
   ],
   "scripts": {
-    "test": "node --test",
+    "test": "node --test --test-concurrency=1 --test-timeout 10000 --test-skip-pattern=\"Docker\"",
     "test:docker": "node --test test/docker-bootstrap.test.js",
-    "test:coverage": "c8 --reporter=cobertura --reporter=text node --test",
+    "test:coverage": "c8 --reporter=cobertura --reporter=text node --test --test-concurrency=1 --test-timeout 10000 --test-skip-pattern=\"Docker\"",
     "build:site": "node site/build.js",
     "release": "semantic-release"
   },
