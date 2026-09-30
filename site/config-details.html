@@ -111,7 +111,7 @@ vibestackr --exclude web
     service: api
 </code></pre>
 <h3><code>shortcuts[]</code></h3>
-<p>Single-key TUI actions. Each has <code>key</code>, <code>label</code>, and either <code>restart</code> (restarts a named service) or <code>command</code> (runs a shell command). Supports typed <code>inputs[]</code> for interactive prompts.</p>
+<p>Single-key TUI actions. Each has <code>key</code>, <code>label</code>, and either <code>restart</code> (restarts a named service) or <code>command</code> (runs a shell command, with its output shown in the vibestackr tab — the TUI switches there when it runs). Supports typed <code>inputs[]</code> for interactive prompts: text boxes, or dropdowns for inputs with fixed <code>options</code>.</p>
 <hr>
 <h2>Service fields (<code>services[].&lt;field&gt;</code>)</h2>
 <h3><code>name</code> <em>(required)</em></h3>
@@ -186,7 +186,7 @@ vibestackr --exclude web
 <pre><code class="language-yaml">onReady: curl -s http://localhost:4000/warmup
 </code></pre>
 <h3><code>stopCommand</code></h3>
-<p>Shell command run in <code>cwd</code> when the service is stopped (restart, TUI &#39;reload&#39;, or shutdown). Use for cleanup of anything that outlives the spawned process, like a docker container.</p>
+<p>Shell command run in <code>cwd</code> when the service is stopped (restart, including one triggered by a config reload, or shutdown). Use for cleanup of anything that outlives the spawned process, like a docker container.</p>
 <pre><code class="language-yaml">stopCommand: docker stop myapp-postgres
 </code></pre>
 <hr>
@@ -252,16 +252,19 @@ vibestackr --exclude web
 <h3><code>command</code></h3>
 <p>Shell command to run (supports <code>${name}</code> substitution from <code>inputs[]</code>). Mutually exclusive with <code>restart</code>. Can be paired with <code>cwd</code> for a working directory.</p>
 <h3><code>inputs[]</code></h3>
-<p>Makes the shortcut interactive. Each entry needs a <code>name</code>, and optional <code>label</code>, <code>placeholder</code>, and/or <code>default</code>. The TUI shows a text box per input; the MCP <code>run_shortcut</code> tool gains typed parameters. Collected values substitute into <code>command</code> by their <code>name</code>.</p>
+<p>Makes the shortcut interactive. Each entry needs a <code>name</code>, and optional <code>label</code>, <code>placeholder</code>, <code>default</code>, and/or <code>options</code>. The TUI shows a text box per input — or a dropdown, for an input with <code>options</code> (plain strings or <code>{ value, label }</code>; any other value is rejected, including over MCP). The MCP <code>run_shortcut</code> tool gains typed parameters. Collected values substitute into <code>command</code> by their <code>name</code>.</p>
 <pre><code class="language-yaml">- key: s
   label: Seed database with a named fixture
-  command: npm run seed -- ${fixture}
+  command: npm run seed -- ${fixture} --env ${env}
   cwd: api
   inputs:
     - name: fixture
       label: Fixture name
       placeholder: e.g. large-dataset
       default: default
+    - name: env
+      label: Environment
+      options: [dev, { value: stg, label: Staging }]
 </code></pre>
 <hr>
 <h2>Config format options</h2>

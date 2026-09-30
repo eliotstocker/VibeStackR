@@ -61,7 +61,7 @@ npx vibestackr init
 | `vibestackr config "<description>"` | Hand an agent a targeted edit to an existing config instead of a from-scratch rewrite. |
 | `vibestackr mcp` | Run the MCP server, exposing the running stack to AI coding agents. |
 | `vibestackr stop` | Stop the background stack and every service in it. |
-| `vibestackr reload` | Apply a config edit to the running stack without restarting it. |
+| `vibestackr reload` | Apply a config (or `.env`) edit to the running stack without restarting it. Starts new services and restarts only the ones whose command or resolved env actually changed. |
 
 Flags (apply to the default/start command, and only take effect when
 starting a *new* stack): `-c, --config <path>`, `-b, --background`,
@@ -110,17 +110,73 @@ status, read the logs, debug the issue, and iterate.
 Always available: **q** / **Ctrl+C** stop everything, **b** background
 (stack keeps running, re-run vibestackr to reattach), **Shift+R** reload
 config without restarting the stack, **Shift+S** pick a service to restart
-from a popover list, **Shift+O** show the status bar's full overflow,
-**Tab** / **←→** / **1-9** switch tabs, **↑↓** scroll one line, **Page
-Up/Down** scroll a page, **Home/End** jump to top / back to the live tail.
-Plus whatever you define in `shortcuts[]`.
+from a popover list, **Shift+J** run an auto-discovered job (npm scripts,
+Make/Gradle/Cargo/Python targets) in a split pane, **Shift+O** show the
+status bar's full overflow, **Tab** / **←→** / **1-9** switch tabs, **↑↓**
+scroll one line, **Page Up/Down** scroll a page, **Home/End** jump to top /
+back to the live tail. While a popover is open, **q** / **b** / **Shift+R**
+are ignored so a stray keypress can't take the stack down — **Ctrl+C**
+always works.
+
+Plus whatever you define in `shortcuts[]`. A `command` shortcut switches to
+the vibestackr tab, where its output appears. Give it `inputs[]` and it
+opens a popover first: a text box per input, or a dropdown for an input
+with a fixed set of `options`:
+
+```yaml
+shortcuts:
+  - key: m
+    label: run a migration
+    command: npm run migrate -- --env ${env}
+    cwd: api
+    inputs:
+      - name: env
+        label: Environment
+        options: [dev, { value: stg, label: Staging }, prod]
+        default: stg
+```
+
+## Logs
+
+Every service gets its own scrollback tab (in memory, 20,000 lines;
+`--persist-logs` also writes them to disk). Output is shown the way a
+terminal would show it. Progress bars and spinners that redraw with `\r`
+update in place on one row, instead of adding a line per frame. A line
+still being written, with no newline yet, is visible as it grows.
+
+## Reloading config
+
+`vibestackr reload` (or **Shift+R**, or the `reload_config` MCP tool) re-reads
+your config file and the root `.env` and applies them to the running stack:
+
+- New services start.
+- A running service whose `command`, `args`, `cwd` or **resolved env**
+  changed is restarted. The resolved env is your root `.env`, its
+  `envFile` *contents* and its `env{}`, so editing a `.env` counts as a change.
+  Everything else keeps running.
+- A changed `oneShot` service (a migration, a `docker run -d`) is reported
+  but not re-run. Restart it yourself when you want it re-run.
+- A variable deleted from the root `.env` is unset (or goes back to your
+  shell's value).
+
+You don't need to restart build daemons yourself. The Gradle daemon applies
+the invoking client's current env on every build, including config-time
+reads, forked `Exec`/`JavaExec`/`bootRun` processes and the configuration
+cache. It also starts a fresh daemon on its own when JVM args or
+`JAVA_HOME` change. Restarting the service, which a reload now does, is
+enough.
 
 ## MCP server
 
 `vibestackr mcp` exposes the running stack to AI coding agents over the
-[Model Context Protocol](https://modelcontextprotocol.io): `get_status`,
-`get_logs`, `get_services`, `restart_service`, `reload_config`,
-`list_shortcuts`, `run_shortcut`. Register it as a project-scoped MCP server
+[Model Context Protocol](https://modelcontextprotocol.io): `start_daemon`,
+`stop_daemon`, `get_config_schema`, `get_status`, `get_logs`,
+`get_services`, `restart_service`, `reload_config`, `list_shortcuts`,
+`run_shortcut`, `list_scripts`, `run_script`, `get_job_status`. `get_logs`
+also returns the line still being written (a progress bar mid-redraw, a
+prompt waiting for input), so an agent can tell a slow job from a hung one.
+`run_shortcut` rejects any input value outside its `options` list.
+Register it as a project-scoped MCP server
 (e.g. in `.mcp.json`, `.agents/mcp_config.json`, or `.opencode/opencode.json`, so it's spawned with your project as its working
 directory):
 

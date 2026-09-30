@@ -71,7 +71,7 @@
         "liveness": { "$ref": "#/definitions/liveness" },
         "onSuccess": { "type": "string", "description": "Shell command run once this oneShot service's process exits with code 0. Fires on process exit, not on liveness passing." },
         "onReady": { "type": "string", "description": "Shell command run once this service is actually ready (liveness passed, or process exited if oneShot with no liveness). Skipped if liveness times out or fails." },
-        "stopCommand": { "type": "string", "description": "Shell command run in cwd when this service is stopped (restart, `vibestackr stop`, or Ctrl+C/'q'/'reload' shutdown) — for cleanup of anything that outlives the spawned process itself, e.g. `docker stop my-postgres` or `docker compose down` for a oneShot `docker run -d`/`docker compose up -d` service whose own process already exited long ago." },
+        "stopCommand": { "type": "string", "description": "Shell command run in cwd when this service is stopped (restart, `vibestackr stop`, or Ctrl+C/'q'/'reload' shutdown) — for cleanup of anything that outlives the spawned process itself, e.g. `docker stop my-postgres` or `docker compose down` for a oneShot `docker run -d`/`docker compose up -d` service whose own process already exited long ago. Also runs when a config reload restarts the service because its command/env changed." },
         "install": {
           "type": "object",
           "additionalProperties": false,
@@ -235,7 +235,7 @@
         "cwd": { "type": "string", "description": "Working directory for `command`, relative to the project root." },
         "inputs": {
           "type": "array",
-          "description": "Makes this a `command`-type shortcut interactive: collects a value for each entry here before running `command` (TUI: a popover with one text box per input; MCP's run_shortcut tool gains a matching `inputs` parameter) and substitutes `${name}` in `command` with what was collected. Ignored for `restart`/`service`+`job`/`jobs`-type shortcuts.",
+          "description": "Makes this a `command`-type shortcut interactive: collects a value for each entry here before running `command` (TUI: a popover with one text box — or dropdown, for an input with `options` — per input; MCP's run_shortcut tool gains a matching `inputs` parameter) and substitutes `${name}` in `command` with what was collected. Ignored for `restart`/`service`+`job`/`jobs`-type shortcuts.",
           "items": {
             "type": "object",
             "required": ["name"],
@@ -244,7 +244,26 @@
               "name": { "type": "string", "description": "Substituted into `command` as `${name}`." },
               "label": { "type": "string", "description": "Shown above the input box / as the MCP parameter description. Defaults to `name`." },
               "placeholder": { "type": "string", "description": "Placeholder text shown in the empty input box." },
-              "default": { "type": "string", "description": "Used if the value submitted is empty." }
+              "default": { "type": "string", "description": "Used if the value submitted is empty. With `options`, must be one of their values (the dropdown's initial selection); defaults to the first option." },
+              "options": {
+                "type": "array",
+                "minItems": 1,
+                "description": "Restricts this input to a fixed set of values — the TUI shows a dropdown instead of a text box, and a value not in this list (e.g. from MCP's run_shortcut) is rejected rather than run. Each entry is either a plain string (value and label both) or `{ value, label }`.",
+                "items": {
+                  "oneOf": [
+                    { "type": "string" },
+                    {
+                      "type": "object",
+                      "required": ["value"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "value": { "type": "string", "description": "Substituted into `command`." },
+                        "label": { "type": "string", "description": "Shown in the dropdown. Defaults to `value`." }
+                      }
+                    }
+                  ]
+                }
+              }
             }
           }
         }

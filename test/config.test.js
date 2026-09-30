@@ -101,6 +101,19 @@ test('rejects a config missing a required field, naming the field', () => {
   })
 })
 
+test('accepts shortcut inputs[].options in both string and {value,label} form, rejects an empty list', () => {
+  withTmpDir((dir) => {
+    const withOptions = (options) => JSON.stringify({
+      services: [],
+      shortcuts: [{ key: 'd', label: 'deploy', command: 'deploy ${env}', inputs: [{ name: 'env', options }] }],
+    })
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), withOptions(['dev', { value: 'stg', label: 'Staging' }]))
+    assert.equal(loadConfig(dir).config.shortcuts[0].inputs[0].options.length, 2)
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), withOptions([]))
+    assert.throws(() => loadConfig(dir), /options/)
+  })
+})
+
 test('rejects an unrecognized top-level property, naming it', () => {
   withTmpDir((dir) => {
     fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify({ services: [], notARealField: true }))

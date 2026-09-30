@@ -101,7 +101,7 @@ warnings:
 ```
 
 ### `shortcuts[]`
-Single-key TUI actions. Each has `key`, `label`, and either `restart` (restarts a named service) or `command` (runs a shell command). Supports typed `inputs[]` for interactive prompts.
+Single-key TUI actions. Each has `key`, `label`, and either `restart` (restarts a named service) or `command` (runs a shell command, with its output shown in the vibestackr tab — the TUI switches there when it runs). Supports typed `inputs[]` for interactive prompts: text boxes, or dropdowns for inputs with fixed `options`.
 
 ---
 
@@ -220,7 +220,7 @@ onReady: curl -s http://localhost:4000/warmup
 ```
 
 ### `stopCommand`
-Shell command run in `cwd` when the service is stopped (restart, TUI 'reload', or shutdown). Use for cleanup of anything that outlives the spawned process, like a docker container.
+Shell command run in `cwd` when the service is stopped (restart, including one triggered by a config reload, or shutdown). Use for cleanup of anything that outlives the spawned process, like a docker container.
 
 ```yaml
 stopCommand: docker stop myapp-postgres
@@ -328,18 +328,21 @@ A service name. Restarts (or starts, if not running) that service when pressed. 
 Shell command to run (supports `${name}` substitution from `inputs[]`). Mutually exclusive with `restart`. Can be paired with `cwd` for a working directory.
 
 ### `inputs[]`
-Makes the shortcut interactive. Each entry needs a `name`, and optional `label`, `placeholder`, and/or `default`. The TUI shows a text box per input; the MCP `run_shortcut` tool gains typed parameters. Collected values substitute into `command` by their `name`.
+Makes the shortcut interactive. Each entry needs a `name`, and optional `label`, `placeholder`, `default`, and/or `options`. The TUI shows a text box per input — or a dropdown, for an input with `options` (plain strings or `{ value, label }`; any other value is rejected, including over MCP). The MCP `run_shortcut` tool gains typed parameters. Collected values substitute into `command` by their `name`.
 
 ```yaml
 - key: s
   label: Seed database with a named fixture
-  command: npm run seed -- ${fixture}
+  command: npm run seed -- ${fixture} --env ${env}
   cwd: api
   inputs:
     - name: fixture
       label: Fixture name
       placeholder: e.g. large-dataset
       default: default
+    - name: env
+      label: Environment
+      options: [dev, { value: stg, label: Staging }]
 ```
 
 ---

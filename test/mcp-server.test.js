@@ -151,7 +151,7 @@ test('run_shortcut passes `inputs` through to an interactive shortcut', async ()
   }
   await withMcpClient(config, async ({ client, engine }) => {
     const shortcuts = await client.callTool({ name: 'list_shortcuts', arguments: {} })
-    assert.deepEqual(toolText(shortcuts).shortcuts, [{ key: 'e', label: 'echo message', inputs: [{ name: 'msg', label: 'Message', placeholder: null, default: null }] }])
+    assert.deepEqual(toolText(shortcuts).shortcuts, [{ key: 'e', label: 'echo message', inputs: [{ name: 'msg', label: 'Message', placeholder: null, default: null, options: null }] }])
 
     const ran = await client.callTool({ name: 'run_shortcut', arguments: { key: 'e', inputs: { msg: 'hi-from-mcp-input' } } })
     assert.deepEqual(toolText(ran), { ok: true })
@@ -166,7 +166,7 @@ test('get_logs and run_shortcut report tool errors (isError) rather than throwin
     // a truly malformed request (missing name) is. get_logs requires `name`
     // in its zod schema, so the SDK itself rejects a missing name before it
     // ever reaches the socket — verify that path instead.
-    assert.deepEqual(toolText(badLogs), { lines: [] })
+    assert.deepEqual(toolText(badLogs), { lines: [], partial: [] })
 
     const badShortcut = await client.callTool({ name: 'run_shortcut', arguments: { key: 'nope' } })
     assert.equal(badShortcut.isError, true)

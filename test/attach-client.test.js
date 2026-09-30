@@ -44,15 +44,18 @@ async function withDaemon(config, fn) {
 
 function fakeUI() {
   const written = [] // [{tab, line}]
+  const partials = [] // [{tab, lines}]
   let refreshes = 0
   let destroyed = false
   return {
     ui: {
       write: (tab, line) => written.push({ tab, line }),
+      setPartial: (tab, lines) => partials.push({ tab, lines }),
       refreshStatus: () => { refreshes++ },
       destroy: () => { destroyed = true },
     },
     written,
+    partials,
     refreshCount: () => refreshes,
     isDestroyed: () => destroyed,
   }
@@ -130,6 +133,50 @@ test('pollOnce feeds only new log lines into the UI, in order, across repeated c
     // Nothing new happened — a second poll shouldn't redeliver 'one'.
     await attach.pollOnce()
     assert.equal(written.length, countAfterFirst)
+  })
+})
+
+test('pollOnce hands the in-progress line to UI.setPartial only when it changes, and clears it once committed', async () => {
+  // Gated on a file the test creates (not a timer) — see the matching engine test.
+  const go = path.join(os.tmpdir(), `vibestackr-go-${process.pid}-${Date.now()}`)
+  const script = `process.stdout.write('\\rstep 1'); setInterval(() => { if (require('fs').existsSync(${JSON.stringify(go)})) { process.stdout.write('\\rstep 2\\n'); process.exit(0) } }, 20)`
+  const config = { services: [{ name: 'bar', command: process.execPath, args: ['-e', script] }] }
+  await withDaemon(config, async ({ engine, root }) => {
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.getLogsSince('bar').partial[0] === 'step 1')
+
+    const attach = createAttachClient({ config, root })
+    const { ui, written, partials } = fakeUI()
+    attach.setUI(ui)
+
+    await attach.pollOnce()
+    assert.deepEqual(partials.filter((p) => p.tab === 'bar'), [{ tab: 'bar', lines: ['step 1'] }])
+    await attach.pollOnce() // unchanged — no redundant redraw
+    assert.equal(partials.filter((p) => p.tab === 'bar').length, 1)
+
+    fs.writeFileSync(go, '')
+    await waitUntil(() => engine.getLogs('bar').includes('step 2'))
+    await attach.pollOnce()
+    assert.deepEqual(written.filter((w) => w.tab === 'bar').map((w) => w.line), ['step 2'])
+    assert.deepEqual(partials.filter((p) => p.tab === 'bar').at(-1), { tab: 'bar', lines: [] })
+  })
+  fs.rmSync(go, { force: true })
+})
+
+// Regression: setInterval kept firing while the daemon was stalled (e.g.
+// mid-runSync), and the backlog of overlapping polls all tailed with the same
+// cursor — each writing the same new lines into the UI.
+test('overlapping pollOnce() calls deliver each log line exactly once', async () => {
+  const config = { services: [{ name: 'noisy', command: 'sh', args: ['-c', 'echo one; sleep 10'] }] }
+  await withDaemon(config, async ({ engine, root }) => {
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.getLogs('noisy').includes('one'))
+    const attach = createAttachClient({ config, root })
+    const { ui, written } = fakeUI()
+    attach.setUI(ui)
+    await Promise.all([attach.pollOnce(), attach.pollOnce(), attach.pollOnce()])
+    await attach.pollOnce()
+    assert.equal(written.filter((w) => w.tab === 'noisy' && w.line === 'one').length, 1)
   })
 })
 

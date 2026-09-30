@@ -6,7 +6,7 @@ const fs = require('fs')
 const net = require('net')
 const os = require('os')
 const path = require('path')
-const { createEngine, goInstallReason, rustInstallReason, pythonInstallReason, pythonInstallCommand, interpolateShortcutInputs } = require('../lib/engine')
+const { createEngine, goInstallReason, rustInstallReason, pythonInstallReason, pythonInstallCommand, interpolateShortcutInputs, normalizeInputOptions } = require('../lib/engine')
 
 const NOOP_UI = { write() {}, refreshStatus() {}, destroy() {} }
 const baseArgs = () => ({ exclude: new Set(), only: new Set(), serviceLog: '', persistLogs: false })
@@ -494,6 +494,89 @@ test('envFile loads KEY=VALUE pairs into the service env, and env{} wins on conf
   })
 })
 
+// Regression: parsed envFiles were cached forever, so a restart after
+// editing the file still got the old values.
+test('envFile edits are picked up by the next spawn (restart), not served from a stale cache', async () => {
+  const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'echo FOO=$FOO; sleep 30'], envFile: '.env' }] }
+  await withEngine(config, {}, async (engine, dir) => {
+    fs.writeFileSync(path.join(dir, '.env'), 'FOO=one\n')
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.getLogs('web').includes('FOO=one'))
+    fs.writeFileSync(path.join(dir, '.env'), 'FOO=second\n')
+    await engine.restartService('web')
+    await waitUntil(() => engine.getLogs('web').includes('FOO=second'))
+  })
+})
+
+// ── reloadConfig ──────────────────────────────────────────────────────────
+
+const printsFoo = (extra = {}) => ({ name: 'web', command: 'sh', args: ['-c', 'echo FOO=$FOO; sleep 30'], ...extra })
+
+test('reloadConfig restarts a running service whose env{} changed, and leaves an unchanged one alone', async () => {
+  const config = { services: [printsFoo({ env: { FOO: 'old' } }), { name: 'other', command: 'sh', args: ['-c', 'sleep 30'] }] }
+  await withEngine(config, {}, async (engine) => {
+    for (const s of config.services) engine.spawnService(s)
+    await waitUntil(() => engine.getLogs('web').includes('FOO=old'))
+    const otherPid = engine.children.get('other').proc.pid
+
+    const summary = engine.reloadConfig({ services: [printsFoo({ env: { FOO: 'new' } }), { name: 'other', command: 'sh', args: ['-c', 'sleep 30'] }] })
+    assert.deepEqual(summary, { started: [], restarted: ['web'], changedOneShot: [] })
+    await waitUntil(() => engine.getLogs('web').includes('FOO=new'))
+    assert.equal(engine.children.get('other').proc.pid, otherPid)
+  })
+})
+
+test('reloadConfig restarts a service whose envFile *contents* changed, even with an identical config', async () => {
+  const config = { services: [printsFoo({ envFile: '.env' })] }
+  await withEngine(config, {}, async (engine, dir) => {
+    fs.writeFileSync(path.join(dir, '.env'), 'FOO=before\n')
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.getLogs('web').includes('FOO=before'))
+    fs.writeFileSync(path.join(dir, '.env'), 'FOO=after-edit\n')
+    const summary = engine.reloadConfig({ services: [printsFoo({ envFile: '.env' })] })
+    assert.deepEqual(summary.restarted, ['web'])
+    await waitUntil(() => engine.getLogs('web').includes('FOO=after-edit'))
+  })
+})
+
+test('reloadConfig reports, but does not re-run, a changed oneShot service; starts a new one', async () => {
+  const config = { services: [{ name: 'migrate', command: 'sh', args: ['-c', 'echo ran'], oneShot: true }] }
+  await withEngine(config, {}, async (engine) => {
+    await engine.spawnService(config.services[0]).ready
+    const summary = engine.reloadConfig({ services: [
+      { name: 'migrate', command: 'sh', args: ['-c', 'echo ran-v2'], oneShot: true },
+      { name: 'fresh', command: 'sh', args: ['-c', 'sleep 30'] },
+    ] })
+    assert.deepEqual(summary, { started: ['fresh'], restarted: [], changedOneShot: ['migrate'] })
+    await new Promise((r) => setTimeout(r, 200))
+    assert.ok(!engine.getLogs('migrate').includes('ran-v2'))
+  })
+})
+
+test('loadEnvFile on reload unsets a key deleted from the file, restoring a shell value it had shadowed', async () => {
+  const config = { services: [] }
+  process.env.VIBESTACKR_TEST_SHELL = 'from-shell'
+  delete process.env.VIBESTACKR_TEST_ONLY_FILE
+  try {
+    await withEngine(config, {}, async (engine, dir) => {
+      const file = path.join(dir, '.env')
+      fs.writeFileSync(file, 'VIBESTACKR_TEST_ONLY_FILE=x\n')
+      engine.loadEnvFile(file)
+      assert.equal(process.env.VIBESTACKR_TEST_ONLY_FILE, 'x')
+      fs.writeFileSync(file, 'VIBESTACKR_TEST_SHELL=from-file\n')
+      engine.loadEnvFile(file, { overwrite: true })
+      assert.equal(process.env.VIBESTACKR_TEST_ONLY_FILE, undefined) // removed from file -> unset
+      assert.equal(process.env.VIBESTACKR_TEST_SHELL, 'from-file')
+      fs.writeFileSync(file, '')
+      engine.loadEnvFile(file, { overwrite: true })
+      assert.equal(process.env.VIBESTACKR_TEST_SHELL, 'from-shell') // shell value back, not deleted
+    })
+  } finally {
+    delete process.env.VIBESTACKR_TEST_SHELL
+    delete process.env.VIBESTACKR_TEST_ONLY_FILE
+  }
+})
+
 test('envFile pointing at a missing file is a no-op, not an error', async () => {
   const config = { services: [{ name: 'web', command: 'sh', args: ['-c', 'echo done'], oneShot: true, envFile: '.env' }] }
   await withEngine(config, {}, async (engine) => {
@@ -543,6 +626,53 @@ test('per-service log ring buffer is capped rather than growing unbounded', asyn
     const lines = engine.getLogs('noisy')
     assert.ok(lines.length <= 21000, `expected buffer to be capped, got ${lines.length}`)
     assert.equal(lines[lines.length - 1], '25000') // most recent line always survives trimming
+  })
+})
+
+// Regression: readline ended a line on every bare `\r`, so each frame of a
+// redrawn progress bar landed in the buffer as its own (near-duplicate) line.
+test('\\r-redrawn output commits once as its final frame, with the in-progress frame exposed as partial', async () => {
+  // Second frame gated on a file the test creates (not a timer), so a slow
+  // machine can't race past the in-progress frame before it's observed.
+  const go = path.join(os.tmpdir(), `vibestackr-go-${process.pid}-${Date.now()}`)
+  const script = `process.stdout.write('\\rprogress 50%'); const t = setInterval(() => { if (require('fs').existsSync(${JSON.stringify(go)})) { clearInterval(t); process.stdout.write('\\rprogress 100%\\nfinal, no newline') } }, 20)`
+  const config = { services: [{ name: 'bar', command: process.execPath, args: ['-e', script], oneShot: true }] }
+  await withEngine(config, {}, async (engine) => {
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.getLogsSince('bar').partial[0] === 'progress 50%')
+    assert.deepEqual(engine.getLogs('bar'), []) // nothing committed yet
+    fs.writeFileSync(go, '')
+    await waitUntil(() => engine.getLogs('bar').length === 2)
+    assert.deepEqual(engine.getLogs('bar'), ['progress 100%', 'final, no newline'])
+    assert.deepEqual(engine.getLogsSince('bar').partial, [])
+  })
+  fs.rmSync(go, { force: true })
+})
+
+// A grandchild that ignores SIGTERM keeps the old stdout pipe open after the
+// restart, so that stream's 'end' (the splitter's own cleanup) never comes —
+// the partial must be retired on the process's exit instead, or the old and
+// new process's identical in-progress lines both show.
+test('restart does not leave the killed process\'s in-progress line alongside the new one\'s', async () => {
+  const config = { services: [{ name: 'dl', command: 'sh', args: ['-c', "printf 'Downloading 42%%'; (trap '' TERM; sleep 3) & wait"] }] }
+  await withEngine(config, {}, async (engine) => {
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.getPartial('dl').length === 1)
+    await engine.restartService('dl')
+    await waitUntil(() => engine.getPartial('dl')[0] === 'Downloading 42%')
+    await new Promise((r) => setTimeout(r, 200)) // give a stale one time to (wrongly) still be there
+    assert.deepEqual(engine.getPartial('dl'), ['Downloading 42%'])
+  })
+})
+
+test('runSync (command shortcuts, install steps) collapses \\r redraws too', async () => {
+  const config = { services: [], shortcuts: [{ key: 'p', label: 'progress', command: "printf '\\r1/3\\r2/3\\r3/3\\n'" }] }
+  await withEngine(config, {}, async (engine) => {
+    engine.runShortcut(config.shortcuts[0])
+    // exclude the `running shortcut ...` echo of the command text itself
+    const lines = engine.getLogs('run-local').filter((l) => l.includes('/3') && !l.includes('running shortcut'))
+    assert.equal(lines.length, 1)
+    assert.match(lines[0], /3\/3$/)
   })
 })
 
@@ -643,6 +773,28 @@ test('interpolateShortcutInputs: falls back to the input\'s own default when no 
 test('interpolateShortcutInputs: shell-quotes a value so it cannot inject additional shell syntax', () => {
   const result = interpolateShortcutInputs('echo ${msg}', [{ name: 'msg' }], { msg: "hi'; rm -rf /tmp/whatever; echo '" })
   assert.equal(result, "echo 'hi'\\''; rm -rf /tmp/whatever; echo '\\'''")
+})
+
+test('interpolateShortcutInputs: an options[] input accepts a listed value (string or {value,label} form)', () => {
+  const inputs = [{ name: 'env', options: ['dev', { value: 'stg', label: 'Staging' }] }]
+  assert.equal(interpolateShortcutInputs('deploy ${env}', inputs, { env: 'stg' }), "deploy 'stg'")
+})
+
+test('interpolateShortcutInputs: an options[] input rejects an unlisted value rather than running it', () => {
+  const inputs = [{ name: 'env', options: ['dev', 'stg'] }]
+  assert.throws(() => interpolateShortcutInputs('deploy ${env}', inputs, { env: 'prod' }), /must be one of: dev, stg/)
+})
+
+test('interpolateShortcutInputs: an options[] input with no value falls back to default, then the first option', () => {
+  assert.equal(interpolateShortcutInputs('x ${e}', [{ name: 'e', options: ['a', 'b'], default: 'b' }], {}), "x 'b'")
+  assert.equal(interpolateShortcutInputs('x ${e}', [{ name: 'e', options: ['a', 'b'] }], { e: '' }), "x 'a'")
+})
+
+test('normalizeInputOptions: both entry shapes normalize to {value,label}; no options[] is null', () => {
+  assert.deepEqual(normalizeInputOptions({ options: ['a', { value: 'b' }, { value: 'c', label: 'C' }] }), [
+    { value: 'a', label: 'a' }, { value: 'b', label: 'b' }, { value: 'c', label: 'C' },
+  ])
+  assert.equal(normalizeInputOptions({ name: 'x' }), null)
 })
 
 test('interpolateShortcutInputs: with no inputs[] configured, the command passes through unchanged', () => {
