@@ -270,7 +270,12 @@ response has a chance to flush before the process serving it exits).
   daemon every build (verified 9.x, incl. forked Exec/JavaExec and the
   configuration cache), and `--stop` kills every daemon of that version
   machine-wide — the IDE's too. Anything genuinely stateful outside the
-  process group is the service's `stopCommand`'s job. `parseEnvFile`'s cache is keyed on
+  process group is the service's `stopCommand`'s job.
+  Reloads are async and serialized (each awaits its own restarts before the
+  next diffs anything), and `restartService` is serialized per service and
+  cancels a pending autoRestart backoff timer — overlapping restarts used to
+  each spawn a replacement, orphaning one. Exit handlers read `autoRestart`
+  from the live config (`currentService`), not the spawn-time copy. `parseEnvFile`'s cache is keyed on
   mtime+size for the same reason: a forever-cache meant restarts silently
   kept stale envFile values.
 - `restart`/`restart_service` validates the service name exists *before*

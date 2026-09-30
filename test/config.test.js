@@ -233,3 +233,16 @@ test('loadConfig with explicit path that is a directory throws a clear error', (
     assert.throws(() => loadConfig(dir, 'config-dir'), /config path is not a file/)
   })
 })
+
+test('rejects an options-backed input whose default is not one of its options', () => {
+  withTmpDir((dir) => {
+    fs.writeFileSync(path.join(dir, '.vibestackr.json'), JSON.stringify({
+      services: [],
+      shortcuts: [{ key: 'd', label: 'deploy', command: 'deploy ${env}', inputs: [{ name: 'env', options: ['dev', { value: 'stg' }], default: 'prod' }] }],
+    }))
+    assert.throws(() => loadConfig(dir), (err) => {
+      assert.match(err.message, /\/shortcuts\/0\/inputs\/0\/default: 'prod' isn't one of its options \(dev, stg\)/)
+      return true
+    })
+  })
+})

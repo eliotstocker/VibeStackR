@@ -2,6 +2,7 @@
 
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
+const { spawnSync } = require('child_process')
 const fs = require('fs')
 const net = require('net')
 const os = require('os')
@@ -519,7 +520,7 @@ test('reloadConfig restarts a running service whose env{} changed, and leaves an
     await waitUntil(() => engine.getLogs('web').includes('FOO=old'))
     const otherPid = engine.children.get('other').proc.pid
 
-    const summary = engine.reloadConfig({ services: [printsFoo({ env: { FOO: 'new' } }), { name: 'other', command: 'sh', args: ['-c', 'sleep 30'] }] })
+    const summary = await engine.reloadConfig({ services: [printsFoo({ env: { FOO: 'new' } }), { name: 'other', command: 'sh', args: ['-c', 'sleep 30'] }] })
     assert.deepEqual(summary, { started: [], restarted: ['web'], changedOneShot: [] })
     await waitUntil(() => engine.getLogs('web').includes('FOO=new'))
     assert.equal(engine.children.get('other').proc.pid, otherPid)
@@ -533,7 +534,7 @@ test('reloadConfig restarts a service whose envFile *contents* changed, even wit
     engine.spawnService(config.services[0])
     await waitUntil(() => engine.getLogs('web').includes('FOO=before'))
     fs.writeFileSync(path.join(dir, '.env'), 'FOO=after-edit\n')
-    const summary = engine.reloadConfig({ services: [printsFoo({ envFile: '.env' })] })
+    const summary = await engine.reloadConfig({ services: [printsFoo({ envFile: '.env' })] })
     assert.deepEqual(summary.restarted, ['web'])
     await waitUntil(() => engine.getLogs('web').includes('FOO=after-edit'))
   })
@@ -543,13 +544,68 @@ test('reloadConfig reports, but does not re-run, a changed oneShot service; star
   const config = { services: [{ name: 'migrate', command: 'sh', args: ['-c', 'echo ran'], oneShot: true }] }
   await withEngine(config, {}, async (engine) => {
     await engine.spawnService(config.services[0]).ready
-    const summary = engine.reloadConfig({ services: [
+    const summary = await engine.reloadConfig({ services: [
       { name: 'migrate', command: 'sh', args: ['-c', 'echo ran-v2'], oneShot: true },
       { name: 'fresh', command: 'sh', args: ['-c', 'sleep 30'] },
     ] })
     assert.deepEqual(summary, { started: ['fresh'], restarted: [], changedOneShot: ['migrate'] })
     await new Promise((r) => setTimeout(r, 200))
     assert.ok(!engine.getLogs('migrate').includes('ran-v2'))
+  })
+})
+
+const liveProcessesMatching = (marker) =>
+  spawnSync('pgrep', ['-f', marker], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean).length
+
+// Regression (PR review): overlapping reloads each saw the old fingerprint
+// and each spawned a replacement — an untracked orphan left running.
+test('overlapping reloads leave exactly one live process, running the last config', async () => {
+  const marker = `vibestackr-reload-race-${process.pid}-${Date.now()}`
+  const svc = (foo) => ({ name: 'web', command: 'sh', args: ['-c', `echo FOO=$FOO; sleep 30 # ${marker}`], env: { FOO: foo } })
+  await withEngine({ services: [svc('a')] }, {}, async (engine) => {
+    engine.spawnService(svc('a'))
+    await waitUntil(() => engine.getLogs('web').includes('FOO=a'))
+    await Promise.all([engine.reloadConfig({ services: [svc('b')] }), engine.reloadConfig({ services: [svc('c')] })])
+    await waitUntil(() => engine.getLogs('web').includes('FOO=c'))
+    await new Promise((r) => setTimeout(r, 300))
+    assert.equal(liveProcessesMatching(marker), 1)
+  })
+})
+
+test('reloading autoRestart: false -> true applies to the already-running process', async () => {
+  const svc = (autoRestart) => ({ name: 'web', command: 'sh', args: ['-c', 'while [ ! -f go ]; do sleep 0.05; done; exit 1'], autoRestart })
+  await withEngine({ services: [svc(false)] }, {}, async (engine, dir) => {
+    engine.spawnService(svc(false))
+    await waitUntil(() => engine.status.get('web') === 'starting')
+    const summary = await engine.reloadConfig({ services: [svc(true)] })
+    assert.deepEqual(summary.restarted, []) // not a spawn-shaping change — no restart needed
+    fs.writeFileSync(path.join(dir, 'go'), '')
+    await waitUntil(() => engine.getLogs('run-local').some((l) => l.includes('autoRestart') && l.includes('attempt 1')))
+  })
+})
+
+test('a manual restart during autoRestart backoff cancels the pending respawn instead of adding a second copy', async () => {
+  const config = { services: [{ name: 'web', command: 'sh', args: ['-c', '[ -f ok ] && { echo spawned; sleep 30; } || exit 1'], autoRestart: true }] }
+  await withEngine(config, {}, async (engine, dir) => {
+    engine.spawnService(config.services[0])
+    await waitUntil(() => engine.getLogs('run-local').some((l) => l.includes('attempt 1'))) // 1s backoff timer now pending
+    fs.writeFileSync(path.join(dir, 'ok'), '')
+    await engine.restartService('web')
+    await new Promise((r) => setTimeout(r, 1500)) // past when the backoff timer would have fired
+    assert.equal(engine.getLogs('web').filter((l) => l === 'spawned').length, 1)
+  })
+})
+
+// The backgrounded sleep holds stdout open past sh's own exit, so 'exit'
+// fires before the unterminated last line commits on stdout's 'end' — the
+// exact order that used to lose it from the file.
+test('--persist-logs keeps a final line that has no trailing newline, even when it lands after exit', async () => {
+  const config = { services: [{ name: 'web', command: 'sh', args: ['-c', "echo first; printf 'last-no-newline'; sleep 0.3 &"], oneShot: true }] }
+  await withEngine(config, { persistLogs: true }, async (engine, dir) => {
+    await engine.spawnService(config.services[0]).ready
+    const file = path.join(dir, 'logs', 'web.log')
+    await waitUntil(() => engine.getLogs('web').includes('last-no-newline'))
+    await waitUntil(() => fs.readFileSync(file, 'utf8').includes('last-no-newline'))
   })
 })
 
