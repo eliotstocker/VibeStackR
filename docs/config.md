@@ -38,7 +38,7 @@ Top-level fields:
 | `liveness` | How vibestackr decides the service is ready — see below. |
 | `onSuccess` | Shell command run once a `oneShot` service's process exits with code 0. Fires on exit, not on liveness. |
 | `onReady` | Shell command run once the service is actually ready (liveness passed, or exited if `oneShot` with no liveness). Skipped on a liveness timeout/failure. |
-| `stopCommand` | Shell command run in `cwd` when this service is stopped (restart, `vibestackr stop`, or shutdown) — for cleanup of anything that outlives the spawned process itself, e.g. `docker stop my-postgres` for a `oneShot: docker run -d ...` service whose own process already exited long ago. |
+| `stopCommand` | Shell command run in `cwd` when this service is stopped (restart, `vibestackr stop`, or shutdown) — for cleanup of anything that outlives the spawned process itself, e.g. `docker stop my-postgres` for a `oneShot: docker run -d ...` service whose own process already exited long ago. Also runs when a config reload restarts the service. |
 | `jsonLog` | Reformats structured (NDJSON) output for display — see below. |
 
 **Auto-install by `type`** — a handful of `type` values trigger a
@@ -127,6 +127,17 @@ substituting `${name}` in `command` for each:
   `command`, so it can't inject additional shell syntax.
 - `default` is used if an empty value is submitted. Ignored for
   `restart`-type shortcuts.
+- Add `options` to restrict an input to a fixed set of values — the TUI
+  shows a dropdown instead of a text box (←/→ cycles, Enter/Space/↓ or a
+  click opens the list), and any other value (e.g. over MCP) is rejected.
+  Entries are plain strings or `{ "value": ..., "label": ... }`; `default`
+  picks the initial selection, otherwise the first option:
+
+  ```json
+  { "name": "env", "label": "Environment", "options": ["dev", { "value": "stg", "label": "Staging" }, "prod"], "default": "stg" }
+  ```
+- Running a `command`-type shortcut switches the TUI to the vibestackr tab,
+  where its output is written.
 
 ## `jsonLog` — pretty-printing structured logs
 

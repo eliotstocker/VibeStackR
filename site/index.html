@@ -80,7 +80,7 @@ agent wait time cut from the recording.</p>
     </div>
     <div class="feature">
 <h3>Keyboard shortcuts</h3>
-<p>Restart a service or run an arbitrary command with a shortcut key, or from your agent.</p>
+<p>Restart a service or run an arbitrary command with a shortcut key, or from your agent. Need a value at run time? Prompt for it with a text box, or a dropdown of fixed <code>options</code>.</p>
     </div>
     <div class="feature">
 <h3>Background &amp; reattach</h3>
@@ -88,7 +88,7 @@ agent wait time cut from the recording.</p>
     </div>
     <div class="feature">
 <h3>Per-service logs</h3>
-<p>Every service gets its own scrollback tab, with an optional <code>--persist-logs</code> if you want them on disk too.</p>
+<p>Every service gets its own scrollback tab, with an optional <code>--persist-logs</code> if you want them on disk too. Progress bars and spinners redraw in place instead of repeating a line per frame, and a line still being written shows up live.</p>
     </div>
   </section>
 
@@ -99,9 +99,9 @@ agent-facing surface is a first-class citizen.</p>
 <ul>
 <li><code>vibestackr init</code> hands an agent the job of writing your config in the first place.</li>
 <li><code>vibestackr mcp</code> lets an agent read status/logs, restart a service, or trigger a shortcut mid-session, without leaving its own context.</li>
-<li><code>vubestackr config &quot;add a postgres docker instance and make the java service depend on it&quot;</code> updates your config file using your installed agent cli</li>
+<li><code>vibestackr config &quot;add a postgres docker instance and make the java service depend on it&quot;</code> updates your config file using your installed agent CLI.</li>
 </ul>
-<p>you agent can now write code, restart the running service, check the status, read the logs, debug the issue and intterate.</p>
+<p>Your agent can now write code, restart the running service, check the status, read the logs (including a progress bar or prompt that hasn&#39;t printed a newline yet), debug the issue, and iterate.</p>
 
   </section>
 

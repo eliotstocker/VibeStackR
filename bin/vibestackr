@@ -82,16 +82,21 @@ async function stopCommand() {
 
 async function reloadCommand() {
   if (wantsHelp(process.argv.slice(3))) {
-    console.log(commandLineUsage([{ header: 'vibestackr reload', content: 'Re-reads .vibestackr.json/.vibestackr.yaml from disk and applies it to the already-running daemon, without restarting it. Takes no options.' }]))
+    console.log(commandLineUsage([{ header: 'vibestackr reload', content: 'Re-reads .vibestackr.json/.vibestackr.yaml (and the root .env) from disk and applies it to the already-running daemon, without restarting it. New services are started, and running services whose command, args, cwd or resolved env (env, envFile contents, .env) changed are restarted — oneShot services are only reported, not re-run. Takes no options.' }]))
     process.exit(0)
   }
+  let result
   try {
-    await requestSocket(ROOT, 'reload_config', {})
+    result = await requestSocket(ROOT, 'reload_config', {})
   } catch (err) {
     console.error(`[vibestackr] ${err.message}`)
     process.exit(1)
   }
   console.log('[vibestackr] config reloaded.')
+  // Older daemons answer just { ok: true } — hence the `?.`s.
+  if (result.started?.length) console.log(`  started:   ${result.started.join(', ')}`)
+  if (result.restarted?.length) console.log(`  restarted: ${result.restarted.join(', ')} (command/env changed)`)
+  if (result.changedOneShot?.length) console.log(`  changed but not re-run (oneShot — restart to apply): ${result.changedOneShot.join(', ')}`)
 }
 
 function main(argv) {
@@ -221,7 +226,7 @@ function main(argv) {
     async function reloadConfigFromDisk() {
       engine.loadEnvFile('.env', { overwrite: true })
       const { config: newConfig } = loadConfig(ROOT, configArg)
-      engine.reloadConfig(newConfig)
+      return engine.reloadConfig(newConfig)
     }
 
     // Unlike the old combined single-process mode, the socket here isn't

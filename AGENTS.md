@@ -75,6 +75,20 @@ provided by whatever project drops `vibestackr` into itself.
   raw line. Purely a *display* transform — the ring buffer and
   `--persist-logs` file always keep the untouched raw line; only `lib/ui.js`
   reformats for rendering.
+- `lib/line-splitter.js` — pure (no blessed/engine dependency) splitting of a
+  child's raw stdout/stderr into log lines, used instead of Node's `readline`
+  — which ends a line on a bare `\r` too, turning every frame of a
+  `\r`-redrawn progress bar into its own near-duplicate line. Here `\r` (and
+  its CSI-G equivalent) means "overwrite this line": a line commits only on
+  `\n`, as its final frame. Text after the last `\n` is reported separately
+  as an ephemeral *partial* (never in the ring buffer or `--persist-logs`),
+  so a line still being written is visible before its `\n` arrives.
+  Single pass per chunk (never re-scans buffered text — it runs on the
+  daemon's only event loop), erase-line (CSI K) blanks the frame, and a line
+  past `MAX_LINE` (64KB) force-commits. A process's partial is retired on its
+  `exit`, not its stream's `end` — an orphaned grandchild can hold the pipe
+  open long after a restart. Cursor-up multi-line redraws (CSI nA) are
+  deliberately not handled.
 - `lib/control-socket.js` — the engine-facing side of the MCP integration.
   Runs inside the daemon process; exposes `status`/`logs`/`tail`/`restart`/
   `shortcuts`/`run_shortcut`/`list_jobs`/`run_job`/`job_status`/`quit` over a
@@ -125,7 +139,7 @@ provided by whatever project drops `vibestackr` into itself.
 - **Dev-only, interactive, TTY-owning.** `blessed` takes over the whole
   screen. There's intentionally no non-interactive/CI/pipe mode — don't add
   one speculatively.
-- **Tests exist for `lib/config.js`, `lib/engine.js`, `lib/json-log.js`,
+- **Tests exist for `lib/config.js`, `lib/engine.js`, `lib/json-log.js`, `lib/line-splitter.js`,
   `lib/control-socket.js`, `lib/attach-client.js`, `lib/mcp-server.js` (via a
   real MCP SDK client spawning the real subcommand), `lib/init.js`, and
   `bin/vibestackr`** (`test/`, run via `npm test` — Node's built-in
@@ -214,7 +228,10 @@ framework. Methods: `status`, `logs` (a fixed last-N-lines snapshot — what
 since}` → `{lines, total}`, what `lib/attach-client.js` polls a few times a
 second instead of re-fetching everything each tick — `total` comes from
 `lib/engine.js`'s `logTotals`, a count that's monotonic and unaffected by the
-ring buffer's own trimming, unlike `buf.length`), `services` (static,
+ring buffer's own trimming, unlike `buf.length`; also returns `partial`, the
+tab's in-progress not-yet-`\n`-terminated line(s) from `lib/line-splitter.js`,
+which `lib/attach-client.js` hands to `lib/ui.js`'s `setPartial()` to redraw
+in place as the widget's trailing row(s); `logs` returns the same `partial` alongside its `lines`), `services` (static,
 config-derived info per service — type, note, `watcher`, oneShot, dependsOn,
 liveness type, `included`, current `status` — as opposed to `status` above,
 which is runtime-only), `restart`, `shortcuts`, `run_shortcut`, `list_jobs`
@@ -242,6 +259,25 @@ response has a chance to flush before the process serving it exits).
   daemon is running, a tool call gets back a clear "vibestackr isn't running
   for this project — start it with `npx vibestackr` first" error
   (`isError: true`) instead of hanging or crashing the MCP process.
+- `reload_config` (`engine.reloadConfig()`) restarts a running long-lived
+  service only if its `spawnFingerprint` changed — a hash of command/args/cwd
+  plus the fully *resolved* env (process.env after the root `.env` re-read,
+  envFile contents, `env{}`), recorded on the `children` entry at spawn.
+  Resolved, not just config `env{}`, because editing a `.env` is the common
+  case. oneShot services are reported (`changedOneShot`), never re-run as a
+  reload side effect. Don't add built-in build-daemon restarts (e.g.
+  `gradle --stop`): Gradle applies the client's current env to a reused
+  daemon every build (verified 9.x, incl. forked Exec/JavaExec and the
+  configuration cache), and `--stop` kills every daemon of that version
+  machine-wide — the IDE's too. Anything genuinely stateful outside the
+  process group is the service's `stopCommand`'s job.
+  Reloads are async and serialized (each awaits its own restarts before the
+  next diffs anything), and `restartService` is serialized per service and
+  cancels a pending autoRestart backoff timer — overlapping restarts used to
+  each spawn a replacement, orphaning one. Exit handlers read `autoRestart`
+  from the live config (`currentService`), not the spawn-time copy. `parseEnvFile`'s cache is keyed on
+  mtime+size for the same reason: a forever-cache meant restarts silently
+  kept stale envFile values.
 - `restart`/`restart_service` validates the service name exists *before*
   calling `engine.restartService()` — that function itself silently no-ops
   for an unknown name (fine for a keyboard shortcut referencing a typo'd name
