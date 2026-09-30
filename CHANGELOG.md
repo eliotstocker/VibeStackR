@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/eliotstocker/VibeStackR/compare/v1.5.3...v1.6.0) (2026-09-30)
+
+
+### Features
+
+* fix streaming stdout + add dropdown ([#1](https://github.com/eliotstocker/VibeStackR/issues/1)) ([91cf6df](https://github.com/eliotstocker/VibeStackR/commit/91cf6df50c0b341e8b383337080805357d828ac8))
+
 ## [1.5.3](https://github.com/eliotstocker/VibeStackR/compare/v1.5.2...v1.5.3) (2026-08-10)
 
 
